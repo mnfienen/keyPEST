@@ -1,3 +1,17 @@
+import numpy as np
+
+
+def dedupe(allv,uniqueval):
+    dupes = []
+    for u in uniqueval:
+        k = 0
+        for v in allv:
+            if v == u:
+                k+=1
+        if k>1:
+            dupes.append(u)
+    return dupes
+
 # ################################################ #
 # Class to hold information about the in/out files #
 # ################################################ #
@@ -20,6 +34,8 @@ class file_control:
         for line in self.indat:
             cline += 1
             tmp = line.lower().strip().split()
+            if len(tmp) > 3:
+                raise(BlockSyntaxError(cline))
             if 'begin' in tmp:
                 if 'keywords' in tmp:
                     allbegins.append([cline,tmp[1],'kw'])
@@ -28,9 +44,9 @@ class file_control:
                 else:
                     raise(BlockSyntaxError(cline))
             elif 'end' in tmp:
-                if 'keywords' in tmp:
-                    allends.append([cline,tmp[1]])
-                elif 'table' in tmp:
+                if len(tmp) > 2:
+                    raise(BlockSyntaxError(cline))
+                else:
                     allends.append([cline,tmp[1]])
         allbegins = np.array(allbegins)
         allends = np.array(allends)
@@ -40,16 +56,22 @@ class file_control:
         eunichkwbegins = np.unique(kwbegins[:,1])
         tabbegins = allbegins[np.nonzero(allbegins[:,2]=='tab')[0]]
         eunichtabbegins = np.unique(tabbegins[:,1])
-        kwends = allends[np.nonzero(allends[:,2]=='kw')[0]]
-        eunichkwends = np.unique(kwends[:,1])
-        tabends = allbegins[np.nonzero(allends[:,2]=='tab')[0]]
-        eunichtabends = np.unique(tabends[:,1])
+        
+        
 
-        if len(kwbegins) == len(eunichkwbegins):
-            self.kw_block_duplicates = 0
-        else:
-            # find duplicates
-            
+        kwbegin_dupes = dedupe(kwbegins[:,1],eunichkwbegins) 
+        tabbegin_dupes = dedupe(tabbegins[:,1],eunichtabbegins) 
+        end_dupes = dedupe(allends[:,1],np.unique(allends[:,1]))
+        dupes = []
+        if len(kwbegin_dupes) > 0:
+            dupes.extend(kwbegin_dupes)
+        if len(tabbegin_dupes) > 0:
+            dupes.extend(tabbegin_dupes)
+        if len(end_dupes) > 0 :
+            dupes.extend(end_dupes)
+        dupes = np.unique(np.array(dupes))
+        if len(dupes) > 0:
+            raise(BlockDuplicate(dupes))
         
         
         
@@ -74,11 +96,24 @@ class file_control:
 # ############# #
 # Error classes # 
 # ############# #
+
+# -- illegal syntax on a block definition line
 class BlockSyntaxError(Exception):
     def __init__(self,cline):
         self.value = cline
     def __str__(self):
-        return('Block input syntax error. Illegal word on line: ' + str(self.value+1))
+        return('\n\nBlock input syntax ERROR: Illegal word on line: ' + str(self.value+1))
+
+# -- duplicate block names used
+class BlockDuplicate(Exception):
+    def __init__(self,dupes):
+        self.dupes = dupes
+    def __str__(self):
+        print "\n\nBlockDuplicate ERROR: The following block names are used more than once:"
+        for i in self.dupes:
+            print i
+            
+        return
 
 # ############################ #
 # Class to hold keyword blocks # 
