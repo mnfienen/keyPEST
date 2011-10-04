@@ -11,46 +11,100 @@ class file_control:
         self.tabblocksall = tabs
         self.tabblocks = list()
     
-    def read_data(self,allkws,alltabs):
+    def check_block_integrity(self,allkws,alltabs):
         self.indat = open(self.infile,'r').readlines()
         cline = -1
+        # first find all block names and types
+        allbegins = list()
+        allends = list()
         for line in self.indat:
             cline += 1
             tmp = line.lower().strip().split()
             if 'begin' in tmp:
                 if 'keywords' in tmp:
-                    if tmp[1] in self.kwblocksall:
+                    allbegins.append([cline,tmp[1],'kw'])
+                elif 'table' in tmp:
+                    allbegins.append([cline,tmp[1],'tab'])
+                else:
+                    raise(BlockSyntaxError(cline))
+            elif 'end' in tmp:
+                if 'keywords' in tmp:
+                    allends.append([cline,tmp[1]])
+                elif 'table' in tmp:
+                    allends.append([cline,tmp[1]])
+        allbegins = np.array(allbegins)
+        allends = np.array(allends)
+        
+        # now check that there are no duplicates
+        kwbegins = allbegins[np.nonzero(allbegins[:,2]=='kw')[0]]
+        eunichkwbegins = np.unique(kwbegins[:,1])
+        tabbegins = allbegins[np.nonzero(allbegins[:,2]=='tab')[0]]
+        eunichtabbegins = np.unique(tabbegins[:,1])
+        kwends = allends[np.nonzero(allends[:,2]=='kw')[0]]
+        eunichkwends = np.unique(kwends[:,1])
+        tabends = allbegins[np.nonzero(allends[:,2]=='tab')[0]]
+        eunichtabends = np.unique(tabends[:,1])
+
+        if len(kwbegins) == len(eunichkwbegins):
+            self.kw_block_duplicates = 0
+        else:
+            # find duplicates
+            
+        
+        
+        
+        
+'''                
+            elif 'end' in tmp:
+                for i in allkws:
+                    if tmp[1] in i.blockname:
+                        i.blockend = cline
+                for j in alltabs:
+                    if tmp[1] in j.blockname:
+                        j.blockend = cline
+
+                 if tmp[1] in self.kwblocksall:
                         self.kwblocks.append(tmp[1])
-                        allkws.append(kw(kwblocknames[tmp[1]]),cline)
+                        allkws.append(kw(tmp[1],kwblocknames[tmp[1]],blockstart=cline))
                 elif 'table' in tmp:
                     if tmp[1] in self.tabblocksall:
                         self.tabblocks.append(tmp[1])
-                    
+                        alltabs.append(tb(tmp[1],tabblocknames[tmp[1]],blockstart=cline))
+                        '''
+# ############# #
+# Error classes # 
+# ############# #
+class BlockSyntaxError(Exception):
+    def __init__(self,cline):
+        self.value = cline
+    def __str__(self):
+        return('Block input syntax error. Illegal word on line: ' + str(self.value+1))
 
 # ############################ #
 # Class to hold keyword blocks # 
 # ############################ #
 class kw:
     
-    def __init__(self, blockname,kwdict,blockstart,blockend):
-        self.blockname = blockname  # name of the block
-        self.kwdict = kwdict        # provided at initialization ---
-                                    # dict with keys -> parname, vals -> values                                   
-        self.blockstart = 0         # starting line for block
-        self.blockend = 0           # ending line for block
+    def __init__(self, blockname,kwdict,blockstart=0,blockend=0):
+        self.blockname = blockname   # name of the block
+        self.kwdict = kwdict         # provided at initialization ---
+                                     # dict with keys -> parname, vals -> values                                   
+        self.blockstart = blockstart # starting line for block
+        self.blockend = 0            # ending line for block
 
 # ########################## #
 # Class to hold table blocks # 
 # ########################## #
 class tb:
     
-    def __init__(self,blockname,nrows,ncols,colnames):
+    def __init__(self,blockname,nrows,ncols,colnames,blockstart=0,blockend=0):
         self.blockname = blockname   # name of the block
         self.nrows = nrows           # number of rows to read
         self.ncols = ncols           # number of columns to read
         self.data = dict(colnames)   # set up a dict to hold cols and np arrays/lists of values
         self.extfile = UNINIT_STRING # external file in case of external
-        
+        self.blockstart = blockstart # starting line for block
+        self.blockend = 0            # ending line for block
 # set a few constants
 UNINIT_STRING = 'unititialized'
 UNINIT_REAL   = 9.9999e25

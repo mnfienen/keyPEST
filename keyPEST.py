@@ -16,5 +16,5 @@ allkws = list()
 alltabs = list()
 
 # read over the file once to evaluate blocknames
-main_control.read_data(allkws,alltabs)
+main_control.check_block_integrity(allkws,alltabs)
 
