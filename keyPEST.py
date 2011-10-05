@@ -8,13 +8,15 @@ from keyPESTdata import *
 # initialize the main control
 main_control = file_control('testcase.key',
                             'testcase.pst',
-                            kwblocknames.keys(),
-                            tabblocknames.keys())
+                            kwblocks.keys(),
+                            tabblocks.keys())
 
-# intialize keyword and table classes
-allkws = list()
-alltabs = list()
 
-# read over the file once to evaluate blocknames
-main_control.check_block_integrity(allkws,alltabs)
+# read over the file once to evaluate blocknames and detect major syntax errors
+main_control.check_block_integrity()
 
+# initialize lists of block types and check that all are valid
+main_control.initialize_blocks()
+
+# read in the keyword blocks
+main_control.read_keyword_blocks()
