@@ -23,10 +23,10 @@ class kw:
 # ########################## #
 class tb:
     
-    def __init__(self,blockname,colnames,nrows=0,ncols=0,blockstart=0,blockend=0):
+    def __init__(self,blockname,colnames,nrow=0,ncol=0,blockstart=0,blockend=0):
         self.blockname = blockname   # name of the block
-        self.nrows = nrows           # number of rows to read
-        self.ncols = ncols           # number of columns to read
+        self.nrow = nrow             # number of rows to read
+        self.ncol = ncol             # number of columns to read
         self.colnames = colnames     # read in the column names
         self.extfile = UNINIT_STRING # external file in case of external
         self.blockstart = blockstart # starting line for block
@@ -219,8 +219,76 @@ class file_control:
             for ckey in allpairs:
                 if ckey.upper() in legal_keywords:
                     cblock.kwdict[ckey.upper()] = allpairs[ckey]
-            print allpairs
-        
+
+    # ############################################### #
+    # read each table block and populate the keywords #
+    # ############################################### #
+    def read_table_blocks(self):
+        for i in self.tabblocks:
+            # cblock is shorthand for the current block
+            cblock = self.tabblocks[i]
+            # set the list of legal keys
+            legal_columns = cblock.colnames
+            #read between the boundaries of the block
+            cbdata = self.indat[cblock.blockstart+1:cblock.blockend]
+            # pull out the header information and parse nrow and ncol
+            cheader = cbdata.pop(0)
+            header_data = cheader.strip().split('=')
+            hd = []
+            for j in header_data:
+                hd.extend(j.split())
+            # check that the header information is correctly formatted
+            if ((hd[0].lower() == 'nrow') and
+                (hd[2].lower() == 'ncol') and
+                (hd[4].lower() == 'columnlabels')):
+                try:
+                    cblock.nrow = int(hd[1])
+                except:
+                    raise(TableBlockHeaderError(cblock.blockstart+2))
+                try:
+                    cblock.ncol = int(hd[3])
+                except:
+                    raise(TableBlockHeaderError(cblock.blockstart+2))
+            else:
+                    raise(TableBlockHeaderError(cblock.blockstart+2))
+            
+            
+            # pull off the column labels
+            clabels = cbdata.pop(0).strip().split()
+
+            # check each row for the correct number of columns
+            cline = cblock.blockstart + 3
+            if len(clabels) != cblock.ncol:
+                raise(TableBlockColError(i,cline,cblock.ncol,len(clabels)))
+            for line in cbdata:
+                cline += 1
+                tmp = line.strip().split()
+                if len(tmp) != cblock.ncol:
+                    raise(TableBlockColError(i,cline,cblock.ncol,len(tmp)))
+            
+            # now check the number of rows
+            if len(cbdata) != cblock.nrow:
+                raise(TableBlockRowError(i,cblock.nrow,len(cbdata)))   
+            
+            '''
+            # make an extended list alternating between KEY and VAL
+            allpairs = list()
+            for line in cbdata:
+                tmp = line.strip().split('=')
+                for j in tmp:
+                    allpairs.extend(j.split())
+            # split temporarily into two lists
+            ckeys = allpairs[::2]
+            cvals = allpairs[1::2]
+            # check that they are the same length
+            if len(ckeys) != len(cvals):
+                raise(KeywordBlockError(i))
+            # make a dictionary of keywords with values
+            allpairs = dict(zip(ckeys,cvals))
+            for ckey in allpairs:
+                if ckey.upper() in legal_keywords:
+                    cblock.kwdict[ckey.upper()] = allpairs[ckey]
+'''
 # ###################################################### #
 # DICTIONARY OF KEWYWORD BLOCK NAMES, PARS, AND DEFAULTS #
 # ###################################################### #
@@ -454,13 +522,41 @@ class BlockIllegalNesting(Exception):
         self.blockin = blockin
         self.blockout = blockout
     def __str__(self):
-        return('\n\n BlockNesting ERROR: \nblock "' + 
+        return('\n\nBlockNesting ERROR: \nblock "' + 
                self.blockin + '" is inside block "' + self.blockout + '"')
 # -- nested blocks
 class KeywordBlockError(Exception):
     def __init__(self,blockname):
         self.blockname = blockname
     def __str__(self):
-        return('\n\n Keyword Block ERROR: \nIn block "' + 
+        return('\n\nKeyword Block ERROR: \nIn block "' + 
                self.blockname + '" Unbalanced keywords and values')
-    
+# -- bad table header
+class TableBlockHeaderError(Exception):
+    def __init__(self,cline):
+        self.value = cline
+    def __str__(self):
+        print('\n\nTable Block Header Error: \n' +
+               'Table header row contains errors on line: ' + str(self.value))
+        return 
+# -- wrong number of rows
+class TableBlockRowError(Exception):
+    def __init__(self,blockname,nrow,nrowtrue):
+        self.blockname = blockname
+        self.nrow = nrow
+        self.nrowtrue = nrowtrue
+    def __str__(self):
+        return('\n\nTable Block Rows Error: \n' +
+               'Table header indicates ' + str(self.nrow) + ' rows expected.\n' + 
+               str(self.nrowtrue) + ' rows found in block "' + self.blockname + '"')
+# -- wrong number of rows
+class TableBlockColError(Exception):
+    def __init__(self,blockname,cline,ncol,ncoltrue):
+        self.blockname = blockname
+        self.cline = cline
+        self.ncol = ncol
+        self.ncoltrue = ncoltrue
+    def __str__(self):
+        return('\n\nTable Block Columns Error: \n' +
+               'Table header indicates ' + str(self.ncol) + ' columns expected.\n' + 
+               str(self.ncoltrue) + ' columns found on line ' + str(self.cline) + ' of block "' + self.blockname + '"')

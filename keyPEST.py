@@ -20,3 +20,6 @@ main_control.initialize_blocks()
 
 # read in the keyword blocks
 main_control.read_keyword_blocks()
+
+# read in the tables
+main_control.read_table_blocks()
