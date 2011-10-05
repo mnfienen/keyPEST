@@ -281,25 +281,7 @@ class file_control:
             if len(cbdata) != cblock.nrow:
                 raise(TableBlockRowError(i,cblock.nrow,len(cbdata)))   
             
-            '''
-            # make an extended list alternating between KEY and VAL
-            allpairs = list()
-            for line in cbdata:
-                tmp = line.strip().split('=')
-                for j in tmp:
-                    allpairs.extend(j.split())
-            # split temporarily into two lists
-            ckeys = allpairs[::2]
-            cvals = allpairs[1::2]
-            # check that they are the same length
-            if len(ckeys) != len(cvals):
-                raise(KeywordBlockError(i))
-            # make a dictionary of keywords with values
-            allpairs = dict(zip(ckeys,cvals))
-            for ckey in allpairs:
-                if ckey.upper() in legal_keywords:
-                    cblock.kwdict[ckey.upper()] = allpairs[ckey]
-'''
+            
 # ###################################################### #
 # DICTIONARY OF KEWYWORD BLOCK NAMES, PARS, AND DEFAULTS #
 # ###################################################### #
