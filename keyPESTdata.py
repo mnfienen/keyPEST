@@ -160,8 +160,17 @@ class file_control:
         # check for blocks that start without end 
         for cb in self.kwblocks:
             if self.kwblocks[cb].blockend == 0:
-                raise(BlockMismatchNoBEGIN(tmp[1]))
+                raise(BlockMismatchNoBEGIN(cb))
+            elif self.kwblocks[cb].blockend <= self.kwblocks[cb].blockstart:
+                raise(BlockReversed(cb))
             
+        for cb in self.tabblocks:
+            if self.tabblocks[cb].blockend == 0:
+                raise(BlockMismatchNoBEGIN(cb))
+            elif self.tabblocks[cb].blockend <= self.tabblocks[cb].blockstart:
+                raise(BlockReversed(cb))        
+        # check or blocks that end before they start
+        
         # finally, make sure there are no blocks inside other blocks
         dumbcheck = []
         dumbchecknames = []
@@ -238,6 +247,8 @@ class file_control:
             for j in header_data:
                 hd.extend(j.split())
             # check that the header information is correctly formatted
+            if len(hd) == 0:
+                raise(TableBlockEmpty(i,cblock.blockstart+2))
             if ((hd[0].lower() == 'nrow') and
                 (hd[2].lower() == 'ncol') and
                 (hd[4].lower() == 'columnlabels')):
@@ -250,7 +261,7 @@ class file_control:
                 except:
                     raise(TableBlockHeaderError(cblock.blockstart+2))
             else:
-                    raise(TableBlockHeaderError(cblock.blockstart+2))
+                raise(TableBlockHeaderError(cblock.blockstart+2))
             
             
             # pull off the column labels
@@ -509,6 +520,12 @@ class BlockMismatchNoEND(Exception):
     def __str__(self):
         print '\n\nBlockMismatch ERROR: Block "' + self.blname + '" BEGINS without END'
         return
+# -- mismatched begin and end 1
+class BlockReversed(Exception):
+    def __init__(self,blname):
+        self.blname = blname
+    def __str__(self):
+        return( '\n\nBlockReversed ERROR: Block "' + self.blname + '" has BEGIN and END reversed')
 # -- mismatched begin and end 2
 class BlockMismatchNoBEGIN(Exception):
     def __init__(self,blname):
@@ -560,3 +577,11 @@ class TableBlockColError(Exception):
         return('\n\nTable Block Columns Error: \n' +
                'Table header indicates ' + str(self.ncol) + ' columns expected.\n' + 
                str(self.ncoltrue) + ' columns found on line ' + str(self.cline) + ' of block "' + self.blockname + '"')
+# -- wrong number of rows
+class TableBlockEmpty(Exception):
+    def __init__(self,blockname,cline):
+        self.blockname = blockname
+        self.cline = cline
+    def __str__(self):
+        return('\n\nTable Block Empty Error: \n' +
+               'Table Block "' + self.blockname + '" is empty. See line: '+ str(self.cline))
