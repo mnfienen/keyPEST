@@ -23,3 +23,6 @@ main_control.read_keyword_blocks()
 
 # read in the tables
 main_control.read_table_blocks()
+
+# write out the PST file
+main_control.write_pst_file()
