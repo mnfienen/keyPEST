@@ -10,18 +10,18 @@ UNINIT_INT    = '-99999'
 # ####################################################################### #
 # Function to write out a single value to the PST file with type-checking # 
 # ####################################################################### #
-def write_val(ofp,cval,cvaltype,parnme):
+def write_val(ofp,cval,cvaltype,parnme,blockname):
     if cvaltype == 'int':
         if cval == UNINIT_INT:
-            raise(DefaultValueError(parnme))        
+            raise(DefaultValueError(parnme,blockname))        
         try:
             cv = int(cval)
             ofp.write('%8d' %(cv))
         except:
             raise(TypeFailError(cval,parnme,cvaltype))
     elif cvaltype == 'float':
-        if cval == UNINIT_FLOAT:
-            raise(DefaultValueError(parnme))        
+        if cval == UNINIT_REAL:
+            raise(DefaultValueError(parnme,blockname))        
         try:
             cv = float(cval)
             ofp.write('%16.8e' %(cv))
@@ -29,7 +29,7 @@ def write_val(ofp,cval,cvaltype,parnme):
             raise(TypeFailError(cval,parnme,cvaltype))
     elif cvaltype == 'string':
         if cval == UNINIT_STRING:
-            raise(DefaultValueError(parnme))        
+            raise(DefaultValueError(parnme,blockname))        
         try: # is it an int?
             cv = int(cval)
             raise(TypeFailError(cval,parnme,cvaltype))
@@ -38,7 +38,7 @@ def write_val(ofp,cval,cvaltype,parnme):
                 cv = float(cval)
                 raise(TypeFailError(cval,parnme,cvaltype))
             except: # neither a float nor an int
-                ofp.write('%s ' %(cval))
+                ofp.write(' %s ' %(cval))
 
 
 # ############################ #
@@ -256,6 +256,8 @@ class file_control:
                         tmp = line.strip().split('=')
                         for j in tmp:
                             allpairs.extend(j.split())
+            if len(allpairs) == 0:
+                raise(KeywordBlockEmpty(i,cblock.blockstart+1))
             # split temporarily into two lists
             ckeys = allpairs[::2]
             cvals = allpairs[1::2]
@@ -314,9 +316,11 @@ class file_control:
             for line in cbdata:
                 cline += 1
                 tmp = line.strip().split()
-                if len(tmp) != cblock.ncol:
+                if i != 'prior_information':
+                    if len(tmp) != cblock.ncol:
+                        raise(TableBlockColError(i,cline,cblock.ncol,len(tmp)))
+                elif len(tmp) < 1: 
                     raise(TableBlockColError(i,cline,cblock.ncol,len(tmp)))
-            
             # now check the number of rows
             if len(cbdata) != cblock.nrow:
                 raise(TableBlockRowError(i,cblock.nrow,len(cbdata)))   
@@ -324,12 +328,20 @@ class file_control:
             # parse the data into a dictionary for later output
             data_array = list()
             for line in cbdata:
-                data_array.append(line.strip().split())
+                if '#' not in line:
+                    if i != 'prior_information':
+                        data_array.append(line.strip().split())
+                    else:
+                        data_array.append(line.strip())
             data_array = np.atleast_2d(np.squeeze(np.array(data_array)))
-            print data_array.shape
             for jj,keyy in enumerate(clabels):
                 if keyy in legal_columns:
-                    self.tabblockdict[i][keyy] = data_array[:,jj]
+                    if cblock.ncol == 1:
+                        self.tabblockdict[i][keyy] = data_array[0]
+                    else:
+                        self.tabblockdict[i][keyy] = data_array[:,jj]
+                else:
+                    raise(BlockIllegalColumn(i,keyy))
     # ###################### #
     # Write out the PST file #
     # ###################### #
@@ -339,190 +351,419 @@ class file_control:
         # ###
         # Write out mandatory control data block
         # ###
+        cblock = 'control_data'
         try:
-            cdict = self.kwblocks['control_data'].kwdict
+            cdict = self.kwblocks[cblock].kwdict
         except KeyError:
-            raise(MissingBlockError('control_data'))
+            raise(MissingBlockError(cblock))
         # write out the mandatory control data block
         ofp.write('pcf\n'+
                   '* control data\n')
-        write_val(ofp,cdict['RSTFLE'],'string','RSTFLE')
-        write_val(ofp,cdict['PESTMODE'],'string','PESTMODE')
+        write_val(ofp,cdict['RSTFLE'],'string','RSTFLE',cblock)
+        write_val(ofp,cdict['PESTMODE'],'string','PESTMODE',cblock)
         ofp.write('\n')
         mandatoryvals = ['NPAR', 'NOBS', 'NPARGP', 'NPRIOR', 'NOBSGP']
         for cmand in mandatoryvals:
-            write_val(ofp,cdict[cmand],'int',cmand)
+            write_val(ofp,cdict[cmand],'int',cmand,cblock)
         if cdict['MAXCOMPDIM'] != UNINIT_INT:
-            write_val(ofp,cdict['MAXCOMPDIM'],'int','MAXCOMPDIM') 
+            write_val(ofp,cdict['MAXCOMPDIM'],'int','MAXCOMPDIM',cblock) 
         else:
             ofp.write('\n')
         mandatoryvals = ['NTPLFLE', 'NINSFLE', 'PRECIS', 'DPOINT']
         mandatorytypes = ['int','int','string','string']
-        for i,cmand in mandatoryvals:
-            write_val(ofp,cdict[cmand],mandatorytypes[i],cmand)
+        for i,cmand in enumerate(mandatoryvals):
+            write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
         optionals = ['NUMCOM', 'JACFILE', 'MESSFILE']
         for copt in optionals:
             if cdict[copt] != UNINIT_INT:
-                write_val(ofp,cdict[copt],'int',copt)
+                write_val(ofp,cdict[copt],'int',copt,cblock)
         ofp.write('\n')
         mandatoryvals = ['RLAMBDA1', 'RLAMFAC', 'PHIRATSUF', 'PHIREDLAM', 'NUMLAM']
         mandatorytypes = ['float','float','float','float','int']
-        for i,cmand in mandatoryvals:
-            write_val(ofp,cdict[cmand],mandatorytypes[i],cmand)         
+        for i,cmand in enumerate(mandatoryvals):
+            write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)         
         if cdict['JACUPDATE'] != UNINIT_INT:
-            write_val(ofp,cdict['JACUPDATE'],'int','JACUPDATE')         
+            write_val(ofp,cdict['JACUPDATE'],'int','JACUPDATE',cblock)         
         if cdict['LAMFORGIVE'] != UNINIT_STRING:
-            write_val(ofp,cdict['LAMFORGIVE'],'string','LAMFORGIVE')         
+            write_val(ofp,cdict['LAMFORGIVE'],'string','LAMFORGIVE',cblock)         
         ofp.write('\n') 
         mandatoryvals = ['RELPARMAX', 'FACPARMAX', 'FACORIG']
-        mandatorytypes = ['real','real','real']
-        for i,cmand in mandatoryvals:
-            write_val(ofp,cdict[cmand],mandatorytypes[i],cmand)
+        mandatorytypes = ['float','float','float']
+        for i,cmand in enumerate(mandatoryvals):
+            write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
         if cdict['IBOUNDSTICK'] != UNINIT_INT:
-            write_val(ofp,cdict['IBOUNDSTICK'],'int','IBOUNDSTICK')         
+            write_val(ofp,cdict['IBOUNDSTICK'],'int','IBOUNDSTICK',cblock)         
         if cdict['UPVECBEND'] != UNINIT_INT:
-            write_val(ofp,cdict['UPVECBEND'],'int','UPVECBEND')  
+            write_val(ofp,cdict['UPVECBEND'],'int','UPVECBEND',cblock)  
         ofp.write('\n')
-        write_val(ofp,cdict['PHIREDSWH'],'real','PHIREDSWH')
+        write_val(ofp,cdict['PHIREDSWH'],'float','PHIREDSWH',cblock)
         if cdict['NOPTSWITCH'] != UNINIT_INT:
-            write_val(ofp,cdict['NOPTSWITCH'],'int','NOPTSWITCH')
+            write_val(ofp,cdict['NOPTSWITCH'],'int','NOPTSWITCH',cblock)
         if cdict['SPLITSWH'] != UNINIT_REAL:
-            write_val(ofp,cdict['SPLITSWH'],'int','SPLITSWH') 
+            write_val(ofp,cdict['SPLITSWH'],'int','SPLITSWH',cblock) 
         if cdict['DOAUI'] != UNINIT_STRING:
-            write_val(ofp,cdict['DOAUI'],'string','DOAUI') 
+            write_val(ofp,cdict['DOAUI'],'string','DOAUI',cblock) 
         if cdict['DOSENREUSE'] != UNINIT_STRING:
-            write_val(ofp,cdict['DOSENREUSE'],'string','DOSENREUSE') 
+            write_val(ofp,cdict['DOSENREUSE'],'string','DOSENREUSE',cblock) 
         ofp.write('\n')
         mandatoryvals = ['NOPTMAX', 'PHIREDSTP', 'NPHISTP', 'NPHINORED', 'RELPARSTP', 'NRELPAR']
-        mandatorytypes = ['int','real','int','int','real','int']
-        for i,cmand in mandatoryvals:
-            write_val(ofp,cdict[cmand],mandatorytypes[i],cmand)
+        mandatorytypes = ['int','float','int','int','float','int']
+        for i,cmand in enumerate(mandatoryvals):
+            write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
         if cdict['PHISTOPTHRESH'] != UNINIT_REAL:
-            write_val(ofp,cdict['PHISTOPTHRESH'],'real','PHISTOPTHRESH') 
+            write_val(ofp,cdict['PHISTOPTHRESH'],'float','PHISTOPTHRESH',cblock) 
         if cdict['LASTRUN'] != UNINIT_INT:
-            write_val(ofp,cdict['LASTRUN'],'int','LASTRUN')  
+            write_val(ofp,cdict['LASTRUN'],'int','LASTRUN',cblock)  
         if cdict['PHIABANDON'] != UNINIT_INT:
             if cdict['PHIABANDON'] != UNINIT_STRING:
                 try:
                     int(cdict['PHIABANDON'])
-                    write_val(ofp,cdict['PHIABANDON'],'int','PHIABANDON')
+                    write_val(ofp,cdict['PHIABANDON'],'int','PHIABANDON',cblock)
                 except:
-                    write_val(ofp,cdict['PHIABANDON'],'string','PHIABANDON')
+                    write_val(ofp,cdict['PHIABANDON'],'string','PHIABANDON',cblock)
         ofp.write('\n')
         mandatoryvals = ['ICOV', 'ICOR', 'IEIG']
         mandatorytypes = ['int','int','int']
-        for i,cmand in mandatoryvals:
-            write_val(ofp,cdict[cmand],mandatorytypes[i],cmand)
+        for i,cmand in enumerate(mandatoryvals):
+            write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
         ofp.write('\n')            
         if cdict['IRES'] != UNINIT_INT:
-            write_val(ofp,cdict['IRES'],'int','IRES') 
+            write_val(ofp,cdict['IRES'],'int','IRES',cblock) 
         optionals = ['JCOSAVE', 'VERBOSEREC','JCOSAVEITN', 'REISAVEITN','PARSAVEITN']
         for copt in optionals:
             if cdict[copt] != UNINIT_STRING:
-                write_val(ofp,cdict[copt],'string',copt)
+                write_val(ofp,cdict[copt],'string',copt,cblock)
         ofp.write('\n')
         # ###
         # Write out optional automatic user intervention block if requested by DOAUI
         # ###
-        if self.kwblocks['automatic_user_intervention'].kwdict['DOAUI'].lower() == 'aui':
-            try:
-                cdict = self.kwblocks['automatic_user_intervention'].kwdict
-            except KeyError:
-                raise(MissingBlockError('automatic_user_intervention'))
-        ofp.write('* automatic user intervention\n')
-        mandatoryvals = ['MAXAUI', 'AUISTARTOPT', 'NOAUIPHIRAT', 'AUIRESTITN']
-        mandatorytypes = ['int','int','real','int']
-        for i,cmand in mandatoryvals:
-            write_val(ofp,cdict[cmand],mandatorytypes[i],cmand)
-        ofp.write('\n')  
-        mandatoryvals = ['AUISENSRAT', 'AUIHOLDMAXCHG', 'AUINUMFREE']
-        mandatorytypes = ['real','int','int']
-        for i,cmand in mandatoryvals:
-            write_val(ofp,cdict[cmand],mandatorytypes[i],cmand)
-        ofp.write('\n')              
-        mandatoryvals = ['AUIPHIRATSUF', 'AUIPHIRATACCEPT', 'NAUINOACCEPT']
-        mandatorytypes = ['real','real','int']
-        for i,cmand in mandatoryvals:
-            write_val(ofp,cdict[cmand],mandatorytypes[i],cmand)
-        ofp.write('\n')  
+        cblock = 'automatic_user_intervention'
+        try:
+            if self.kwblocks[cblock].kwdict['DOAUI'].lower() == 'aui':
+                try:
+                    cdict = self.kwblocks[cblock].kwdict
+                except KeyError:
+                    raise(MissingBlockError(cblock))
+            ofp.write('* automatic user intervention\n')
+            mandatoryvals = ['MAXAUI', 'AUISTARTOPT', 'NOAUIPHIRAT', 'AUIRESTITN']
+            mandatorytypes = ['int','int','float','int']
+            for i,cmand in mandatoryvals:
+                write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
+            ofp.write('\n')  
+            mandatoryvals = ['AUISENSRAT', 'AUIHOLDMAXCHG', 'AUINUMFREE']
+            mandatorytypes = ['float','int','int']
+            for i,cmand in mandatoryvals:
+                write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
+            ofp.write('\n')              
+            mandatoryvals = ['AUIPHIRATSUF', 'AUIPHIRATACCEPT', 'NAUINOACCEPT']
+            mandatorytypes = ['float','float','int']
+            for i,cmand in mandatoryvals:
+                write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
+            ofp.write('\n')  
+        except KeyError:
+            pass
         # ###
         # Write out optional singular value decomposition block
         # ###
+        cblock = 'singular_value_decomposition'
         try:
-            cdict = self.kwblocks['singular_value_decomposition'].kwdict
+            cdict = self.kwblocks[cblock].kwdict
             ofp.write('* singular value decomposition\n')
-            write_val(ofp,cdict['SVDMODE'],'int','SVDMODE')
+            write_val(ofp,cdict['SVDMODE'],'int','SVDMODE',cblock)
             ofp.write('\n')
             mandatoryvals = ['MAXSING', 'EIGTHRESH']
-            mandatorytypes = ['int','real']
-            for i,cmand in mandatoryvals:
-                write_val(ofp,cdict[cmand],mandatorytypes[i],cmand)
+            mandatorytypes = ['int','float']
+            for i,cmand in enumerate(mandatoryvals):
+                write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
             ofp.write('\n')
-            write_val(ofp,cdict['EIGWRITE'],'int','EIGWRITE')
+            write_val(ofp,cdict['EIGWRITE'],'int','EIGWRITE',cblock)
             ofp.write('\n')
         except KeyError:
             pass
         # ###
         # Write out optional lsqr block
         # ###
+        cblock = 'lsqr'
         try:
-            cdict = self.kwblocks['lsqr'].kwdict
+            cdict = self.kwblocks[cblock].kwdict
             ofp.write('* lsqr\n')
-            write_val(ofp,cdict['LSQRMODE'],'int','LSQRMODE')
+            write_val(ofp,cdict['LSQRMODE'],'int','LSQRMODE',cblock)
             ofp.write('\n')
             mandatoryvals = ['LSQR_ATOL', 'LSQR_BTOL', 'LSQR_CONLIM', 'LSQR_ITNLIM']
-            mandatorytypes = ['real','real','real','int']
+            mandatorytypes = ['float','float','float','int']
             for i,cmand in mandatoryvals:
-                write_val(ofp,cdict[cmand],mandatorytypes[i],cmand)
+                write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
             ofp.write('\n')
-            write_val(ofp,cdict['LSQRWRITE'],'int','LSQRWRITE')
+            write_val(ofp,cdict['LSQRWRITE'],'int','LSQRWRITE',cblock)
             ofp.write('\n')
         except KeyError:
             pass         
         # ###
         # Write out optional SVDA block
         # ###
+        cblock = 'svd_assist'
         try:
-            cdict = self.kwblocks['svd assist'].kwdict
+            cdict = self.kwblocks[cblock].kwdict
             ofp.write('* svd assist\n')
-            write_val(ofp,cdict['BASEPESTFILE'],'string','BASEPESTFILE')
+            write_val(ofp,cdict['BASEPESTFILE'],'string','BASEPESTFILE',cblock)
             ofp.write('\n')
-            write_val(ofp,cdict['BASEJACFILE'],'string','BASEJACFILE')
+            write_val(ofp,cdict['BASEJACFILE'],'string','BASEJACFILE',cblock)
             ofp.write('\n')
             mandatoryvals = ['SVDA_MULBPA', 'SVDA_SCALADJ', 'SVDA_EXTSUPER', 'SVDA_SUPDERCALC', 'SVDA_PAR_EXCL']
             mandatorytypes = ['int','int','int','int']
             for i,cmand in mandatoryvals:
-                write_val(ofp,cdict[cmand],mandatorytypes[i],cmand)
+                write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
             ofp.write('\n')
         except KeyError:
             pass        
         # ###
         # Write out optional sensitivity reuse block
         # ###
+        cblock = 'sensitivity_reuse'
         try:
-            cdict = self.kwblocks['sensitivity_reuse'].kwdict
+            cdict = self.kwblocks[cblock].kwdict
             ofp.write('* sensitivity reuse\n')
             mandatoryvals = ['SENRELTHRESH', 'SENMAXREUSE']
-            mandatorytypes = ['real','int']
+            mandatorytypes = ['float','int']
             for i,cmand in mandatoryvals:
-                write_val(ofp,cdict[cmand],mandatorytypes[i],cmand)
+                write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
             ofp.write('\n')
             mandatoryvals = ['SENALLCALCINT', 'SENPREDWEIGHT', 'SENPIEXCLUDE']
-            mandatorytypes = ['int','real','string']
+            mandatorytypes = ['int','float','string']
             for i,cmand in mandatoryvals:
-                write_val(ofp,cdict[cmand],mandatorytypes[i],cmand)
+                write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
             ofp.write('\n')
         except KeyError:
             pass        
         # ###
         # Write out mandatory parameter groups block
         # ###        
+        cblock = 'parameter_groups'
+        cdict = self.tabblockdict[cblock]
+        if len(cdict) == 0:
+            raise(MissingBlockError(cblock))
+        else:
+            ofp.write('* parameter groups\n')
+            mandatoryvals = ['PARGPNME', 'INCTYP', 'DERINC', 'DERINCLB', 'FORCEN', 'DERINCMUL', 'DERMTHD']
+            mandatorytypes = ['string','string','float','float','string','float','string']
+            optionalvals = ['SPLITTHRESH', 'SPLITRELDIFF', 'SPLITACTION']
+            optionaltypes = ['float','float','string']
+            # check that all keys are present
+            for ckey in cdict.keys():
+                if ckey not in mandatoryvals:
+                    raise(DefaultValueError(mandatoryvals[0],cblock))
+            for cr in xrange(len(cdict[mandatoryvals[0]])):
+                for i,cmand in enumerate(mandatoryvals):
+                    write_val(ofp,cdict[cmand][cr],mandatorytypes[i],cmand,cblock)
+                for i,copt in enumerate(optionalvals):
+                    try:
+                        write_val(ofp,cdict[copt][cr],optionaltypes[i],copt,cblock)
+                    except KeyError:
+                        pass
+                ofp.write('\n')
+        # ###
+        # Write out mandatory parameter data block
+        # ###        
+        cblock = 'parameter_data'
+        cdict = self.tabblockdict[cblock]
+        if len(cdict) == 0:
+            raise(MissingBlockError(cblock))
+        else:
+            ofp.write('* parameter data\n')
+            mandatoryvals = ['PARNME', 'PARTRANS', 'PARCHGLIM', 'PARVAL1', 'PARLBND', 'PARUBND', 'PARGP', 'SCALE', 'OFFSET', 'DERCOM']
+            mandatorytypes = ['string','string','string','float','float','float','string','float','float','int','string']
+            # check that all keys are present
+            for ckey in mandatoryvals:
+                if ckey not in cdict.keys():
+                    raise(DefaultValueError(mandatoryvals[0],cblock))
+            for cr in xrange(len(cdict[mandatoryvals[0]])):
+                for i,cmand in enumerate(mandatoryvals):
+                    write_val(ofp,cdict[cmand][cr],mandatorytypes[i],cmand,cblock)
+                ofp.write('\n')
+        # ###
+        # Write out optional parameter tied data block
+        # ###        
+        cblock = 'parameter_tied_data'
+        cdict = self.tabblockdict[cblock]
+        if len(cdict) == 0:
+            pass
+        else:
+            mandatoryvals = ['PARNME', 'PARTIED']
+            mandatorytypes = ['string','string']
+            # check that all keys are present
+            for ckey in cdict.keys():
+                if ckey not in mandatoryvals:
+                    raise(DefaultValueError(mandatoryvals[0],cblock))
+            for cr in xrange(len(cdict[mandatoryvals[0]])):
+                for i,cmand in enumerate(mandatoryvals):
+                    write_val(ofp,cdict[cmand][cr],mandatorytypes[i],cmand,cblock)
+                ofp.write('\n')
+        # ###
+        # Write out mandatory observation groups block
+        # ###        
+        cblock = 'observation_groups'
+        cdict = self.tabblockdict[cblock]
+        if len(cdict) == 0:
+            raise(MissingBlockError(cblock))
+        else:
+            ofp.write('* observation groups\n')
+            mandatoryvals = ['OBGNME']
+            mandatorytypes = ['string']
+            optionalvals = ['GTARG', 'COVFLE']
+            optionaltypes = ['float','string']
+            # check that all keys are present
+            for ckey in mandatoryvals:
+                if ckey not in  cdict.keys():
+                    raise(DefaultValueError(mandatoryvals[0],cblock))
+            for cr in xrange(len(cdict[mandatoryvals[0]])):
+                for i,cmand in enumerate(mandatoryvals):
+                    write_val(ofp,cdict[cmand][cr],mandatorytypes[i],cmand,cblock)
+                for i,copt in enumerate(optionalvals):
+                    try:
+                        write_val(ofp,cdict[copt][cr],optionaltypes[i],copt,cblock)
+                    except KeyError:
+                        pass
+                ofp.write('\n')
+        # ###
+        # Write out mandatory observation data block
+        # ###        
+        cblock = 'observation_data'
+        cdict = self.tabblockdict[cblock]
+        if len(cdict) == 0:
+            raise(MissingBlockError(cblock))
+        else:
+            ofp.write('* observation data\n')
+            mandatoryvals = ['OBSNME', 'OBSVAL', 'WEIGHT', 'OBGNME']
+            mandatorytypes = ['string','float','float','string']
+            # check that all keys are present
+            for ckey in mandatoryvals:
+                if ckey not in  cdict.keys():
+                    raise(DefaultValueError(mandatoryvals[0],cblock))
+            for cr in xrange(len(cdict[mandatoryvals[0]])):
+                for i,cmand in enumerate(mandatoryvals):
+                    write_val(ofp,cdict[cmand][cr],mandatorytypes[i],cmand,cblock)
+                ofp.write('\n')
+        # ###
+        # Write out optional derivatives command line block
+        # ###
+        cblock = 'derivatives_command_line'
         try:
-            cdict = self.tabblocks['parameter_groups'].kwdict
+            cdict = self.kwblocks[cblock].kwdict
+            ofp.write('* derivatives command line\n')
+            write_val(ofp,cdict['DERCOMLINE'],'string','DERCOMLINE',cblock)
+            ofp.write('\n')
+            write_val(ofp,cdict['EXTDERFLE'],'string','EXTDERFLE',cblock)
+            ofp.write('\n')
         except KeyError:
-            raise(MissingBlockError('parameter_groups'))
-
-
+            pass 
+        # ###
+        # Write out mandatory model command line block
+        # ###        
+        cblock = 'model_command_line'
+        cdict = self.tabblockdict[cblock]
+        if len(cdict) == 0:
+            raise(MissingBlockError(cblock))
+        else:
+            ofp.write('* model command line\n')
+            mandatoryvals = ['COMLINE']
+            mandatorytypes = ['string']
+            # check that all keys are present
+            for ckey in mandatoryvals:
+                if ckey not in  cdict.keys():
+                    raise(DefaultValueError(mandatoryvals[0],cblock))
+            for cr in xrange(len(cdict[mandatoryvals[0]])):
+                for i,cmand in enumerate(mandatoryvals):
+                    write_val(ofp,cdict[cmand][cr],mandatorytypes[i],cmand,cblock)
+                ofp.write('\n')                
+                
+        # ###
+        # Write out mandatory model input/output block
+        # ###        
+        ofp.write('* model input/output\n')
+        cblock = 'model_input'
+        cdict = self.tabblockdict[cblock]
+        if len(cdict) == 0:
+            raise(MissingBlockError(cblock))
+        else:
+            mandatoryvals = ['TEMPFLE', 'INFLE']
+            mandatorytypes = ['string','string']
+            # check that all keys are present
+            for ckey in mandatoryvals:
+                if ckey not in  cdict.keys():
+                    raise(DefaultValueError(mandatoryvals[0],cblock))
+            for cr in xrange(len(cdict[mandatoryvals[0]])):
+                for i,cmand in enumerate(mandatoryvals):
+                    write_val(ofp,cdict[cmand][cr],mandatorytypes[i],cmand,cblock)
+                ofp.write('\n')        
+        cblock = 'model_output'
+        cdict = self.tabblockdict[cblock]
+        if len(cdict) == 0:
+            raise(MissingBlockError(cblock))
+        else:
+            mandatoryvals = ['INSFLE', 'OUTFLE']
+            mandatorytypes = ['string','string']
+            # check that all keys are present
+            for ckey in mandatoryvals:
+                if ckey not in  cdict.keys():
+                    raise(DefaultValueError(mandatoryvals[0],cblock))
+            for cr in xrange(len(cdict[mandatoryvals[0]])):
+                for i,cmand in enumerate(mandatoryvals):
+                    write_val(ofp,cdict[cmand][cr],mandatorytypes[i],cmand,cblock)
+                ofp.write('\n')        
+                
+        # ###
+        # Write out optional prior information block
+        # ###        
+        cblock = 'prior_information'
+        cdict = self.tabblockdict[cblock]
+        if len(cdict) == 0:
+            pass
+        else:
+            ofp.write('* prior information\n')
+            mandatoryvals = ['PILINES']
+            mandatorytypes = ['string']
+            # check that all keys are present
+            for ckey in mandatoryvals:
+                if ckey not in  cdict.keys():
+                    raise(DefaultValueError(mandatoryvals[0],cblock))
+            for cr in xrange(len(cdict[mandatoryvals[0]])):
+                for i,cmand in enumerate(mandatoryvals):
+                    write_val(ofp,cdict[cmand][cr],mandatorytypes[i],cmand,cblock)
+                ofp.write('\n') 
+        # ###
+        # Write out optional predictive analysis block
+        # ###
+        cblock = 'predictive_analysis'
+        try:
+            cdict = self.kwblocks[cblock].kwdict
+            ofp.write('* predictive analysis\n')
+            write_val(ofp,cdict['NPREDMAXMIN'],'int','NPREDMAXMIN',cblock)
+            if cdict['PREDNOISE'] != UNINIT_INT: 
+                write_val(ofp,cdict['PREDNOISE'],'int','PREDNOISE',cblock)
+            ofp.write('\n')
+            mandatoryvals = ['PD0', 'PD1', 'PD2']
+            mandatorytypes = ['float','float','float']
+            for i,cmand in enumerate(mandatoryvals):
+                write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
+            ofp.write('\n')
+            mandatoryvals = ['ABSPREDLAM', 'RELPREDLAM', 'INITSCHFAC', 'MULSCHFAC', 'NSEARCH']
+            mandatorytypes = ['float','float','float','float','int']
+            for i,cmand in  enumerate(mandatoryvals):
+                write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
+            ofp.write('\n')
+            mandatoryvals = ['ABSPREDSWH', 'RELPREDSWH']
+            mandatorytypes = ['float','float']
+            for i,cmand in  enumerate(mandatoryvals):
+                write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
+            ofp.write('\n')
+            mandatoryvals = ['NPREDNORED', 'ABSPREDSTP', 'RELPREDSTP', 'NPREDSTP']
+            mandatorytypes = ['int','float','float','int']
+            for i,cmand in  enumerate(mandatoryvals):
+                write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
+            ofp.write('\n')
+        except KeyError:
+            pass  
+        
         
         ofp.close()
 # ###################################################### #
@@ -620,8 +861,6 @@ kwblocks = {'control_data' : # ######################
                 {'DERCOMLINE' : UNINIT_STRING,
                 'EXTDERFLE' : UNINIT_STRING},
                 'model_command_line' : # ######################
-                {'COMLINE' : UNINIT_STRING},
-                'predictive_analysis' : # ######################
                 {'NPREDMAXMIN' : UNINIT_INT,
                 'PREDNOISE' : UNINIT_INT,
                 'PD0' : UNINIT_REAL, 
@@ -671,6 +910,23 @@ kwblocks = {'control_data' : # ######################
                 'NOPTREGADJ' : UNINIT_INT, 
                 'REGWEIGHTRAT' : UNINIT_REAL, 
                 'REGSINGTHRESH' : UNINIT_REAL},
+                'predictive_analysis': # ################
+                 {'NPREDMAXMIN' : UNINIT_INT,
+                  'PREDNOISE' : UNINIT_INT,
+                  'PD0' : UNINIT_REAL,
+                  'PD1' : UNINIT_REAL,
+                  'PD2' : UNINIT_REAL,
+                  'ABSPREDLAM' : UNINIT_REAL,
+                  'RELPREDLAM' : UNINIT_REAL,
+                  'INITSCHFAC' : UNINIT_REAL,
+                  'MULSCHFAC' : UNINIT_REAL,
+                  'NSEARCH' : UNINIT_INT,
+                  'ABSPREDSWH' : UNINIT_REAL,
+                  'RELPREDSWH' : UNINIT_REAL,
+                  'NPREDNORED' : UNINIT_INT,
+                  'ABSPREDSTP' : UNINIT_REAL,
+                  'RELPREDSTP' : UNINIT_REAL,
+                  'NPREDSTP' : UNINIT_INT},
                 'pareto' : # ######################
                 {'PARETO_OBSGROUP' : UNINIT_STRING,
                 'PARETO_WTFAC_START' : UNINIT_REAL, 
@@ -699,6 +955,8 @@ tabblocks = {'parameter_groups' : # ######################
                 ['PARNME', 'PARTIED'],
                 'observation_groups' : # ######################
                 ['OBGNME', 'GTARG', 'COVFLE'],
+                'observation_data' : # ######################
+                ['OBSNME', 'OBSVAL', 'WEIGHT', 'OBGNME'],
                 'model_command_line' : # ######################
                 ['COMLINE'],
                 'model_input' : # ######################
@@ -714,6 +972,8 @@ tabblockdicts = {'parameter_groups' : # ######################
                 'parameter_tied_data' : # ######################
                 dict(),
                 'observation_groups' : # ######################
+                dict(),
+                'observation_data' : # ######################
                 dict(),
                 'model_command_line' : # ######################
                 dict(),
@@ -807,7 +1067,7 @@ class TableBlockRowError(Exception):
         return('\n\nTable Block Rows Error: \n' +
                'Table header indicates ' + str(self.nrow) + ' rows expected.\n' + 
                str(self.nrowtrue) + ' rows found in block "' + self.blockname + '"')
-# -- wrong number of rows
+# -- wrong number of columns
 class TableBlockColError(Exception):
     def __init__(self,blockname,cline,ncol,ncoltrue):
         self.blockname = blockname
@@ -818,8 +1078,16 @@ class TableBlockColError(Exception):
         return('\n\nTable Block Columns Error: \n' +
                'Table header indicates ' + str(self.ncol) + ' columns expected.\n' + 
                str(self.ncoltrue) + ' columns found on line ' + str(self.cline) + ' of block "' + self.blockname + '"')
-# -- wrong number of rows
+# -- Table block is empty
 class TableBlockEmpty(Exception):
+    def __init__(self,blockname,cline):
+        self.blockname = blockname
+        self.cline = cline
+    def __str__(self):
+        return('\n\nTable Block Empty Error: \n' +
+               'Table Block "' + self.blockname + '" is empty. See line: '+ str(self.cline))
+# -- Keyword block is empty
+class KeywordBlockEmpty(Exception):
     def __init__(self,blockname,cline):
         self.blockname = blockname
         self.cline = cline
@@ -833,19 +1101,30 @@ class TypeFailError(Exception):
         self.parnme = parnme
         self.cvaltype = cvaltype
     def __str__(self):
-        return('\n\nParameter type mismatch: \n' +
-               'Parameter ' + self.parnme + ' should be of type: ' + cvaltype +
-               '\nThe value provided is: "' + str(cval))
+        return('\n\nVariable type mismatch: \n' +
+               'Variable ' + self.parnme + ' should be of type: ' + self.cvaltype +
+               '\nThe value provided is: "' + str(self.cval))
 # -- no value provided
 class DefaultValueError(Exception):
-    def __init__(self,parnme):
+    def __init__(self,parnme,block):
         self.parnme = parnme
+        self.block = block
     def __str__(self):
-        return('\n\nNo Value was provided for parameter: ' + self.parnme + '\n' +
-               'This parameter has no default value.')
-# -- no value provided
+        return('\n\nNo Value was provided for variable: "' + self.parnme +
+               '" in block: "' + self.block+ '"\n' +
+               'This variable has no default value.')
+# -- illegal column label in a table block
+class BlockIllegalColumn(Exception):
+    def __init__(self,block,col):
+        self.blockname = block
+        self.keyval = col
+    def __str__(self):
+        return('\n\nColumn Label "' + self.keyval + '" is not allowed in block "' + self.blockname)
+# -- missing required block
 class MissingBlockError(Exception):
-    def __init__(self,blockname):
-        self.blockname = blockname
+    def __init__(self,block):
+        self.blockname = block
     def __str__(self):
-        return('\n\nBlock "' + self.blockname + '" is missing')
+        return('\n\nRequired Block "' + self.block + '" is missing')    
+    
+    

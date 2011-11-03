@@ -1,0 +1,40 @@
+pcf
+* control data
+ restart  estimation 
+     550      40       1       5       1
+       1       1 single  point 
+  1.00000000e+01 -3.00000000e+00  1.00000000e-02  2.00000000e+00      10     999 nolamforgive 
+  1.00000000e+00  2.30000000e+00  1.00000000e-02
+  5.00000000e-01 noaui  senreuse 
+      -1  1.00000000e+00      20       1  2.00000000e+00       9  1.00000000e-04       0 -9.9999e25 
+       1       1       1
+       1 jcosave  verboserec  jcosaveitn  reisaveitn  noparsaveitn 
+* parameter groups
+ group_one  relative   1.00000000e-02  1.00000000e-04 switch   2.00000000e+00 parabolic 
+* parameter data
+ par1  log  relative   3.09000000e+00  1.00000000e-10  1.00000000e+10 group_one   1.00000000e+00  0.00000000e+00       0
+ par2  tied  relative   3.40900000e+01  1.00000000e-10  1.00000000e+10 group_one   1.00000000e+00  0.00000000e+00       0
+ par3  tied  relative   4.09000000e+00  1.00000000e-10  1.00000000e+10 group_one   1.00000000e+00  0.00000000e+00       0
+ par2  par1 
+ par3  par1 
+* observation groups
+ obsgroup1   5.00000000e+02 covfile.filename 
+* observation data
+ ob1   5.00000000e+01  1.10000000e-03 obsgroup1 
+ ob2   4.20000000e+01  1.10000000e-03 obsgroup1 
+* derivatives command line
+ adjoint_code.exe 
+ myjacobian.jac 
+* model command line
+ run1.bat 
+ run2.exe 
+ run3.py 
+* model input/output
+ file.tpl  file.in 
+ file.ins  file.out 
+* predictive analysis
+      -1       1
+  5.00000000e+00  5.20000000e+00  5.50000000e+00
+  0.00000000e+00  5.00000000e+00  2.23000000e+01  3.42000000e+01       3
+  4.20000000e+01  4.20000000e+01
+       5  4.20000000e+01  4.20000000e+01      52
