@@ -89,13 +89,14 @@ class file_control:
     # ############## #
     # INITIALIZATION #
     # ############## #
-    def __init__(self,infilename,outfilename,kws,tabs):
+    def __init__(self,infilename,outfilename,kws,tabs,tabblockdicts):
         self.infile = infilename
         self.outfile = outfilename
         self.kwblocksall = kws
         self.kwblocks = dict()
         self.tabblocksall = tabs
         self.tabblocks = dict()
+        self.tabblockdict = tabblockdicts
 
     # ################################################### #
     # Learn block names, bomb on duplicates or bad syntax #
@@ -249,9 +250,12 @@ class file_control:
             # make an extended list alternating between KEY and VAL
             allpairs = list()
             for line in cbdata:
-                tmp = line.strip().split('=')
-                for j in tmp:
-                    allpairs.extend(j.split())
+                tmp = line.split()
+                if len(tmp)>0:
+                    if tmp[0] != '#':
+                        tmp = line.strip().split('=')
+                        for j in tmp:
+                            allpairs.extend(j.split())
             # split temporarily into two lists
             ckeys = allpairs[::2]
             cvals = allpairs[1::2]
@@ -264,9 +268,9 @@ class file_control:
                 if ckey.upper() in legal_keywords:
                     cblock.kwdict[ckey.upper()] = allpairs[ckey]
 
-    # ############################################### #
-    # read each table block and populate the keywords #
-    # ############################################### #
+    # ########################################### #
+    # read each table block and populate the data #
+    # ########################################### #
     def read_table_blocks(self):
         for i in self.tabblocks:
             # cblock is shorthand for the current block
@@ -284,18 +288,19 @@ class file_control:
             # check that the header information is correctly formatted
             if len(hd) == 0:
                 raise(TableBlockEmpty(i,cblock.blockstart+2))
-            if ((hd[0].lower() == 'nrow') and
-                (hd[2].lower() == 'ncol') and
-                (hd[4].lower() == 'columnlabels')):
-                try:
-                    cblock.nrow = int(hd[1])
-                except:
-                    raise(TableBlockHeaderError(cblock.blockstart+2))
-                try:
-                    cblock.ncol = int(hd[3])
-                except:
-                    raise(TableBlockHeaderError(cblock.blockstart+2))
-            else:
+            try:
+                if ((hd[0].lower() == 'nrow') and
+                    (hd[2].lower() == 'ncol') and
+                    (hd[4].lower() == 'columnlabels')):
+                    try:
+                        cblock.nrow = int(hd[1])
+                    except:
+                        raise(TableBlockHeaderError(cblock.blockstart+2))
+                    try:
+                        cblock.ncol = int(hd[3])
+                    except:
+                        raise(TableBlockHeaderError(cblock.blockstart+2))
+            except:
                 raise(TableBlockHeaderError(cblock.blockstart+2))
             
             
@@ -316,7 +321,15 @@ class file_control:
             if len(cbdata) != cblock.nrow:
                 raise(TableBlockRowError(i,cblock.nrow,len(cbdata)))   
             
-            
+            # parse the data into a dictionary for later output
+            data_array = list()
+            for line in cbdata:
+                data_array.append(line.strip().split())
+            data_array = np.atleast_2d(np.squeeze(np.array(data_array)))
+            print data_array.shape
+            for jj,keyy in enumerate(clabels):
+                if keyy in legal_columns:
+                    self.tabblockdict[i][keyy] = data_array[:,jj]
     # ###################### #
     # Write out the PST file #
     # ###################### #
@@ -694,6 +707,22 @@ tabblocks = {'parameter_groups' : # ######################
                 ['INSFLE', 'OUTFLE'],
                 'prior_information' : # ######################
                 ['PILINES']}
+tabblockdicts = {'parameter_groups' : # ######################
+                dict(),
+                'parameter_data' : # ######################
+                dict(),
+                'parameter_tied_data' : # ######################
+                dict(),
+                'observation_groups' : # ######################
+                dict(),
+                'model_command_line' : # ######################
+                dict(),
+                'model_input' : # ######################
+                dict(),
+                'model_output' : # ######################
+                dict(),
+                'prior_information' : # ######################
+                dict()}
 # ############# #
 # Error classes # 
 # ############# #

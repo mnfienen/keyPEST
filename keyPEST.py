@@ -9,7 +9,8 @@ from keyPESTdata import *
 main_control = file_control('testcase.key',
                             'testcase.pst',
                             kwblocks.keys(),
-                            tabblocks.keys())
+                            tabblocks.keys(),
+                            tabblockdicts)
 
 
 # read over the file once to evaluate blocknames and detect major syntax errors
