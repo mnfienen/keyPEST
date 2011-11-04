@@ -1,0 +1,2 @@
+1) for SVD, if MAXSING > NPAR will PEST bomb? 
+(where NPAR is adjustable, non-fixed pars)

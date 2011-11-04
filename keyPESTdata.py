@@ -541,6 +541,9 @@ class file_control:
             mandatoryvals = ['SVDMODE']
             mandatorytypes = ['int']
             write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
+            # Set MAXSING to a default value if not specified
+            if cdict['MAXSING'] == UNINIT_REAL:
+                cdict['MAXSING'] = self.kwblocks['control_data'].kwdict['NPAR']
             # write a line
             mandatoryvals = ['MAXSING', 'EIGTHRESH']
             mandatorytypes = ['int','float']
@@ -877,10 +880,10 @@ kwblocks = {'control_data' : # ######################
              'NUMCOM' : UNINIT_INT,
              'JACFILE' : UNINIT_INT,
              'MESSFILE' : UNINIT_INT,
-             'RLAMBDA1' : UNINIT_REAL,
+             'RLAMBDA1' : 20,
              'RLAMFAC' : -3,
-             'PHIRATSUF' : UNINIT_REAL,
-             'PHIREDLAM' : UNINIT_REAL,
+             'PHIRATSUF' : 0.3,
+             'PHIREDLAM' : 0.03,
              'NUMLAM' : 10,
              'JACUPDATE' : 999,
              'LAMFORGIVE' : 'lamforgive',
@@ -895,11 +898,11 @@ kwblocks = {'control_data' : # ######################
              'DOAUI' : 'noaui',
              'DOSENREUSE' : 'senreuse',
              'NOPTMAX' : 25,
-             'PHIREDSTP' : UNINIT_REAL,
-             'NPHISTP' : UNINIT_INT,
-             'NPHINORED' : UNINIT_INT,
-             'RELPARSTP' : UNINIT_REAL,
-             'NRELPAR' : UNINIT_INT,
+             'PHIREDSTP' : 0.005,
+             'NPHISTP' : 4,
+             'NPHINORED' : 4,
+             'RELPARSTP' : 0.005,
+             'NRELPAR' : 4,
              'PHISTOPTHRESH' : UNINIT_REAL,
              'LASTRUN' : 1,
              'PHIABANDON' : UNINIT_REAL,
@@ -925,8 +928,8 @@ kwblocks = {'control_data' : # ######################
              'NAUINOACCEPT' : UNINIT_INT},
             'singular_value_decomposition' : # ######################
             {'SVDMODE': 1,
-             'MAXSING' : UNINIT_INT,
-             'EIGTHRESH': 0.5e-7,
+             'MAXSING' : UNINIT_INT, #SET DEFAULT AS NPAR
+             'EIGTHRESH': 5.0e-7,
              'EIGWRITE' : 0},
             'lsqr' :
             {'LSQRMODE' : UNINIT_INT,
@@ -971,34 +974,34 @@ kwblocks = {'control_data' : # ######################
              'NPREDSTP' : UNINIT_INT},
             'regularisation' : # ######################
             # -- kludge here. Must ensure that 'regularization' data matches ' regularisation'
-            {'PHIMLIM' : UNINIT_REAL,
-             'PHIMACCEPT' : UNINIT_REAL, 
+            {'PHIMLIM' : UNINIT_REAL, # SET DEFAULT AS NOBS
+             'PHIMACCEPT' : UNINIT_REAL, # SET DEFAULT AS NOBS*1.05
              'FRACPHIM' : UNINIT_REAL, 
              'MEMSAVE' : 'nomemsave',
-             'WFINIT' : UNINIT_REAL, 
-             'WFMIN' : UNINIT_REAL, 
-             'WFMAX' : UNINIT_REAL, 
+             'WFINIT' : 1.0, 
+             'WFMIN' : 1.0e-10, 
+             'WFMAX' : 1.0e+10, 
              'LINREG' : UNINIT_STRING, 
              'REGCONTINUE' : 'nocontinue',
-             'WFFAC' : UNINIT_REAL, 
-             'WFTOL' : UNINIT_REAL, 
-             'IREGADJ' : UNINIT_INT, 
+             'WFFAC' : 1.3, 
+             'WFTOL' : 1.0e-02, 
+             'IREGADJ' : 1, 
              'NOPTREGADJ' : UNINIT_INT, 
              'REGWEIGHTRAT' : UNINIT_REAL, 
              'REGSINGTHRESH' : UNINIT_REAL},
             'regularization' : # ######################
-            {'PHIMLIM' : UNINIT_REAL,
-             'PHIMACCEPT' : UNINIT_REAL, 
+            {'PHIMLIM' : UNINIT_REAL, # SET DEFAULT AS NOBS
+             'PHIMACCEPT' : UNINIT_REAL, # SET DEFAULT AS NOBS*1.05
              'FRACPHIM' : UNINIT_REAL, 
              'MEMSAVE' : 'nomemsave',
-             'WFINIT' : UNINIT_REAL, 
-             'WFMIN' : UNINIT_REAL, 
-             'WFMAX' : UNINIT_REAL, 
+             'WFINIT' : 1.0, 
+             'WFMIN' : 1.0e-10, 
+             'WFMAX' : 1.0e+10,
              'LINREG' : UNINIT_STRING, 
              'REGCONTINUE' : 'nocontinue',
-             'WFFAC' : UNINIT_REAL, 
-             'WFTOL' : UNINIT_REAL, 
-             'IREGADJ' : UNINIT_INT, 
+             'WFFAC' : 1.3, 
+             'WFTOL' : 1.0e-02, 
+             'IREGADJ' : 1, 
              'NOPTREGADJ' : UNINIT_INT, 
              'REGWEIGHTRAT' : UNINIT_REAL, 
              'REGSINGTHRESH' : UNINIT_REAL},
