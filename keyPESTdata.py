@@ -7,6 +7,21 @@ UNINIT_REAL   = '-9.9999e25'
 UNINIT_INT    = '-99999'
 
 
+
+def write_KW_line(ofp,cdict,mandatoryvals,mandatorytypes,optionalvals=False,optionaltypes=False):
+        # check that all mandatory keys are present
+        for ckey in mandatoryvals:
+            if ckey not in cdict.keys():
+                raise(DefaultValueError(mandatoryvals[0],cblock))
+        for i,cmand in enumerate(mandatoryvals):
+            write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
+        for i,copt in enumerate(optionalvals):
+            try:
+                write_val(ofp,cdict[copt],optionaltypes[i],copt,cblock)
+            except KeyError:
+                pass
+        ofp.write('\n')
+
 # ####################################################################### #
 # Function to write out a single value to the PST file with type-checking # 
 # ####################################################################### #
@@ -361,14 +376,14 @@ class file_control:
                   '* control data\n')
         write_val(ofp,cdict['RSTFLE'],'string','RSTFLE',cblock)
         write_val(ofp,cdict['PESTMODE'],'string','PESTMODE',cblock)
+        # write a line
         ofp.write('\n')
         mandatoryvals = ['NPAR', 'NOBS', 'NPARGP', 'NPRIOR', 'NOBSGP']
-        for cmand in mandatoryvals:
-            write_val(ofp,cdict[cmand],'int',cmand,cblock)
-        if cdict['MAXCOMPDIM'] != UNINIT_INT:
-            write_val(ofp,cdict['MAXCOMPDIM'],'int','MAXCOMPDIM',cblock) 
-        else:
-            ofp.write('\n')
+        mandatorytypes = ['int','int','int','int','int']
+        optionalvals = ['MAXCOMPDIM']
+        optionaltypes = ['int']
+        write_KW_line(ofp,cdict,mandatoryvals,mandatorytypes,optionalvals,optionaltypes)
+
         mandatoryvals = ['NTPLFLE', 'NINSFLE', 'PRECIS', 'DPOINT']
         mandatorytypes = ['int','int','string','string']
         for i,cmand in enumerate(mandatoryvals):
