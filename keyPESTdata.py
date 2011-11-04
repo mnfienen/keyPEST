@@ -6,7 +6,31 @@ UNINIT_STRING = 'unititialized'
 UNINIT_REAL   = '-9.9999e25'
 UNINIT_INT    = '-99999'
 
+# ############################################################################### #
+# Function to write out a KW block line to the PST file for pest++ variables only #
+# ############################################################################### #
 
+def write_KW_line_ppp(ofp,cdict,cblock,mandatoryvals,mandatorytypes,optionalvals=False,optionaltypes=False,**kwargs):
+    
+    try:
+        writenewline = kwargs['writenewline']        
+    except KeyError:
+        writenewline = True
+    
+    # check that all mandatory keys are present
+    for ckey in mandatoryvals:
+        if ckey not in cdict.keys():
+            raise(DefaultValueError(ckey,cblock))
+    for i,cmand in enumerate(mandatoryvals):
+        write_val_ppp(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
+    if optionalvals != False:    
+        for i,copt in enumerate(optionalvals):
+            try:
+                write_val(ofp,cdict[copt],optionaltypes[i],copt,cblock,optflag=True)
+            except KeyError:
+                pass
+    if writenewline:
+        ofp.write('\n')
 # ########################################################################################################## #
 # Function to write out a KW block line to the PST file: can include mix of mandatory and optional variables #
 # ########################################################################################################## #
@@ -34,7 +58,7 @@ def write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes,optionalvals=Fal
         ofp.write('\n')
 
 # ########################################################################################################## #
-# Function to write out a KW block line to the PST file: can include mix of mandatory and optional variables #
+# Function to write out a TABLE block line to the PST file: can include mix of mandatory and optional variables #
 # ########################################################################################################## #
 
 def write_TAB_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes,optionalvals=False,optionaltypes=False,**kwargs):
@@ -59,6 +83,47 @@ def write_TAB_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes,optionalvals=Fa
         if writenewline:
             ofp.write('\n')
 
+# ############################################################################### #
+# Function to write out a single value to the PST file with type-checking: pest++ # 
+# ############################################################################### #
+def write_val_ppp(ofp,cval,cvaltype,parnme,blockname,optflag=False):
+    if cvaltype == 'int':
+        if cval == UNINIT_INT:
+            if optflag:
+                return
+            else:
+                raise(DefaultValueError(parnme,blockname))        
+        try:
+            cv = int(cval)
+            ofp.write(' %s ' %(parnme + '(' + str(cval) + ')'))
+        except:
+            raise(TypeFailError(cval,parnme,cvaltype))
+    elif cvaltype == 'real':
+        if cval == UNINIT_REAL:
+            if optflag:
+                return
+            else:
+                raise(DefaultValueError(parnme,blockname))        
+        try:
+            cv = float(cval)
+            ofp.write(' %s ' %(parnme + '(' + str(cval) + ')'))
+        except:
+            raise(TypeFailError(cval,parnme,cvaltype))
+    elif cvaltype == 'string':
+        if cval == UNINIT_STRING:
+            if optflag:
+                return
+            else:
+                raise(DefaultValueError(parnme,blockname))        
+        try: # is it an int?
+            cv = int(cval)
+        except:
+            try: # is it a float?
+                cv = float(cval)
+            except: # neither a float nor an int
+                ofp.write(' %s ' %(parnme + '(' + str(cval) + ')'))
+
+
 # ####################################################################### #
 # Function to write out a single value to the PST file with type-checking # 
 # ####################################################################### #
@@ -74,7 +139,7 @@ def write_val(ofp,cval,cvaltype,parnme,blockname,optflag=False):
             ofp.write('%8d' %(cv))
         except:
             raise(TypeFailError(cval,parnme,cvaltype))
-    elif cvaltype == 'float':
+    elif cvaltype == 'real':
         if cval == UNINIT_REAL:
             if optflag:
                 return
@@ -465,29 +530,29 @@ class file_control:
         write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes,optionalvals,optionaltypes)
         # write a line
         mandatoryvals = ['RLAMBDA1', 'RLAMFAC', 'PHIRATSUF', 'PHIREDLAM', 'NUMLAM']
-        mandatorytypes = ['float','float','float','float','int']
+        mandatorytypes = ['real','real','real','real','int']
         optionalvals = ['JACUPDATE', 'LAMFORGIVE', 'MESSFILE']
         optionaltypes = ['int','string','int']
         write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes,optionalvals,optionaltypes)
         # write a line
         mandatoryvals = ['RELPARMAX', 'FACPARMAX', 'FACORIG']
-        mandatorytypes = ['float','float','float']
+        mandatorytypes = ['real','real','real']
         optionalvals = ['IBOUNDSTICK', 'UPVECBEND']
         optionaltypes = ['int','int']
         write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes,optionalvals,optionaltypes)
         # write a line
         mandatoryvals = ['PHIREDSWH']
-        mandatorytypes = ['float']
+        mandatorytypes = ['real']
         optionalvals = ['NOPTSWITCH', 'SPLITSWH','DOAUI','DOSENREUSE']
-        optionaltypes = ['int','float','string','string']
+        optionaltypes = ['int','real','string','string']
         write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes,optionalvals,optionaltypes)
         # write a line
         mandatoryvals = ['NOPTMAX', 'PHIREDSTP', 'NPHISTP', 'NPHINORED', 'RELPARSTP', 'NRELPAR']
-        mandatorytypes = ['int','float','int','int','float','int']
+        mandatorytypes = ['int','real','int','int','real','int']
         write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes,writenewline=False)
         # strange special case here
         if cdict['PHISTOPTHRESH'] != UNINIT_REAL:
-            write_val(ofp,cdict['PHISTOPTHRESH'],'float','PHISTOPTHRESH',cblock) 
+            write_val(ofp,cdict['PHISTOPTHRESH'],'real','PHISTOPTHRESH',cblock) 
         if cdict['LASTRUN'] != UNINIT_INT:
             write_val(ofp,cdict['LASTRUN'],'int','LASTRUN',cblock)  
         if cdict['PHIABANDON'] != UNINIT_INT:
@@ -518,15 +583,15 @@ class file_control:
             ofp.write('* automatic user intervention\n')
             # write a line
             mandatoryvals = ['MAXAUI', 'AUISTARTOPT', 'NOAUIPHIRAT', 'AUIRESTITN']
-            mandatorytypes = ['int','int','float','int']
+            mandatorytypes = ['int','int','real','int']
             write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
             # write a line
             mandatoryvals = ['AUISENSRAT', 'AUIHOLDMAXCHG', 'AUINUMFREE']
-            mandatorytypes = ['float','int','int']
+            mandatorytypes = ['real','int','int']
             write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
             # write a line
             mandatoryvals = ['AUIPHIRATSUF', 'AUIPHIRATACCEPT', 'NAUINOACCEPT']
-            mandatorytypes = ['float','float','int']
+            mandatorytypes = ['real','real','int']
             write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
         except KeyError:
             pass
@@ -546,7 +611,7 @@ class file_control:
                 cdict['MAXSING'] = self.kwblocks['control_data'].kwdict['NPAR']
             # write a line
             mandatoryvals = ['MAXSING', 'EIGTHRESH']
-            mandatorytypes = ['int','float']
+            mandatorytypes = ['int','real']
             write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
             # write a line
             mandatoryvals = ['EIGWRITE']
@@ -567,7 +632,7 @@ class file_control:
             write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
             # write a line
             mandatoryvals = ['LSQR_ATOL', 'LSQR_BTOL', 'LSQR_CONLIM', 'LSQR_ITNLIM']
-            mandatorytypes = ['float','float','float','int']
+            mandatorytypes = ['real','real','real','int']
             write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
             # write a line
             mandatoryvals = ['LSQRWRITE']
@@ -603,11 +668,11 @@ class file_control:
             ofp.write('* sensitivity reuse\n')
             # write a line
             mandatoryvals = ['SENRELTHRESH', 'SENMAXREUSE']
-            mandatorytypes = ['float','int']
+            mandatorytypes = ['real','int']
             write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
             # write a line
             mandatoryvals = ['SENALLCALCINT', 'SENPREDWEIGHT', 'SENPIEXCLUDE']
-            mandatorytypes = ['int','float','string']
+            mandatorytypes = ['int','real','string']
             write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
         except KeyError:
             pass        
@@ -622,9 +687,9 @@ class file_control:
             ofp.write('* parameter groups\n')
             #write out the table rows
             mandatoryvals = ['PARGPNME', 'INCTYP', 'DERINC', 'DERINCLB', 'FORCEN', 'DERINCMUL', 'DERMTHD']
-            mandatorytypes = ['string','string','float','float','string','float','string']
+            mandatorytypes = ['string','string','real','real','string','real','string']
             optionalvals = ['SPLITTHRESH', 'SPLITRELDIFF', 'SPLITACTION']
-            optionaltypes = ['float','float','string']
+            optionaltypes = ['real','real','string']
             write_TAB_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes,optionalvals,optionaltypes)
             
         # ###
@@ -637,7 +702,7 @@ class file_control:
         else:
             ofp.write('* parameter data\n')
             mandatoryvals = ['PARNME', 'PARTRANS', 'PARCHGLIM', 'PARVAL1', 'PARLBND', 'PARUBND', 'PARGP', 'SCALE', 'OFFSET', 'DERCOM']
-            mandatorytypes = ['string','string','string','float','float','float','string','float','float','int','string']
+            mandatorytypes = ['string','string','string','real','real','real','string','real','real','int','string']
             write_TAB_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
 
         # ###
@@ -663,7 +728,7 @@ class file_control:
             mandatoryvals = ['OBGNME']
             mandatorytypes = ['string']
             optionalvals = ['GTARG', 'COVFLE']
-            optionaltypes = ['float','string']
+            optionaltypes = ['real','string']
             write_TAB_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes,optionalvals,optionaltypes)
 
         # ###
@@ -676,7 +741,7 @@ class file_control:
         else:
             ofp.write('* observation data\n')
             mandatoryvals = ['OBSNME', 'OBSVAL', 'WEIGHT', 'OBGNME']
-            mandatorytypes = ['string','float','float','string']
+            mandatorytypes = ['string','real','real','string']
             write_TAB_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
             
         # ###
@@ -754,19 +819,19 @@ class file_control:
             write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes,optionalvals,optionaltypes)
             # write a line
             mandatoryvals = ['PD0', 'PD1', 'PD2']
-            mandatorytypes = ['float','float','float']
+            mandatorytypes = ['real','real','real']
             write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
             # write a line
             mandatoryvals = ['ABSPREDLAM', 'RELPREDLAM', 'INITSCHFAC', 'MULSCHFAC', 'NSEARCH']
-            mandatorytypes = ['float','float','float','float','int']
+            mandatorytypes = ['real','real','real','real','int']
             write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
             # write a line
             mandatoryvals = ['ABSPREDSWH', 'RELPREDSWH']
-            mandatorytypes = ['float','float']
+            mandatorytypes = ['real','real']
             write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
             # write a line
             mandatoryvals = ['NPREDNORED', 'ABSPREDSTP', 'RELPREDSTP', 'NPREDSTP']
-            mandatorytypes = ['int','float','float','int']
+            mandatorytypes = ['int','real','real','int']
             write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
         except KeyError:
             pass  
@@ -792,20 +857,20 @@ class file_control:
             if cdict['PHIMACCEPT'] == UNINIT_REAL:
                 cdict['PHIMACCEPT'] = float(cdict['PHIMLIM']) * 1.05                
             mandatoryvals = ['PHIMLIM', 'PHIMACCEPT']
-            mandatorytypes = ['float','float']
+            mandatorytypes = ['real','real']
             optionalvals = ['FRACPHIM', 'MEMSAVE']
-            optionaltypes = ['float','string']
+            optionaltypes = ['real','string']
             # write a line         
             mandatoryvals = ['WFINIT', 'WFMIN', 'WFMAX']
-            mandatorytypes = ['float','float', 'float']
+            mandatorytypes = ['real','real', 'real']
             optionalvals = ['LINREG', 'REGCONTINUE']
             optionaltypes = ['string','string']
             write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes,optionalvals,optionaltypes)
             # write a line
             mandatoryvals = ['WFFAC', 'WFTOL', 'IREGADJ']
-            mandatorytypes = ['float','float', 'int']
+            mandatorytypes = ['real','real', 'int']
             optionalvals = ['NOPTREGADJ', 'REGWEIGHTRAT', 'REGSINGTHRESH']
-            optionaltypes = ['int','float','float']
+            optionaltypes = ['int','real','real']
             write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes,optionalvals,optionaltypes)
         # ###
         # Write out optional pareto block
@@ -820,7 +885,7 @@ class file_control:
             write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
             # write a line
             mandatoryvals = ['PARETO_WTFAC_START', 'PARETO_WTFAC_FIN', 'NUM_WTFAC_INC']
-            mandatorytypes = ['float','float','int']
+            mandatorytypes = ['real','real','int']
             write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
             # write a line
             mandatoryvals = ['NUM_ITER_START', 'NUM_ITER_GEN', 'NUM_ITER_FIN']
@@ -837,7 +902,7 @@ class file_control:
             if cval != 0:
                 # write a line
                 mandatoryvals = ['OBS_TERM', 'ABOVE_OR_BELOW', 'OBS_THRESH', 'NUM_ITER_THRESH']
-                mandatorytypes = ['string','string','float','int']
+                mandatorytypes = ['string','string','real','int']
                 write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
             # write a line
             mandatoryvals = ['NOBS_REPORT']
@@ -857,10 +922,48 @@ class file_control:
         except KeyError:
             pass            
             
-            
-            
-            
+        # ###
+        # Write out optional pest++ block
+        # ###
+        cblock = 'pest++'
+        try:
+            cdict = self.kwblocks[cblock].kwdict
+            ofp.write('++# PEST++ section generated by keyPEST\n')            
+        except KeyError:
+            pass  
+        if cdict['HOST'] == UNINIT_STRING:
+            raise(DefaultValueError('HOST',cblock))
+        else:
+            chost = cdict['HOST']
+        if cdict['PORT'] == UNINIT_INT:
+            raise(DefaultValueError('PORT',cblock))
+        else:
+            try:
+                cport = int(cdict['PORT'])
+            except:
+                raise(TypeFailError(cdict['PORT'],'PORT','int'))
+        cdict['GMAN_SOCKET'] = str(chost) + ":" + str(cport)
+        # write a line
+        mandatoryvals = ['GMAN_SOCKET']
+        mandatorytypes = ['string']
+        ofp.write('++ ')
+        write_KW_line_ppp(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
+        # write a line
+        mandatoryvals = ['SUPER_NMAX','SUPER_EIGTHRES']
+        mandatorytypes = ['int','real']
+        ofp.write('++ ')
+        write_KW_line_ppp(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
+        # write a line
+        mandatoryvals = ['N_ITER_BASE','N_ITER_SUPER']
+        mandatorytypes = ['int','int']
+        ofp.write('++ ')
+        write_KW_line_ppp(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
+                 
+        # ######
+        # CLOSE THE PST FILE
+        # ######
         ofp.close()
+        
 # ###################################################### #
 # DICTIONARY OF KEWYWORD BLOCK NAMES, PARS, AND DEFAULTS #
 # ###################################################### #
@@ -1035,7 +1138,17 @@ kwblocks = {'control_data' : # ######################
              'ABOVE_OR_BELOW' : UNINIT_STRING, 
              'OBS_THRESH' : UNINIT_REAL, 
              'NUM_ITER_THRESH' : UNINIT_INT, 
-             'NOBS_REPORT' : UNINIT_STRING}}
+             'NOBS_REPORT' : UNINIT_STRING},
+            'pest++' : # ##################
+            {'GMAN_SOCKET' : UNINIT_STRING,
+             'HOST' : UNINIT_STRING,
+             'PORT' : UNINIT_INT,
+             'N_ITER_BASE' : UNINIT_INT,
+             'N_ITER_SUPER' : UNINIT_INT,
+             'SUPER_EIGTHRES' : 5.0E-07,
+             'SUPER_NMAX' : UNINIT_INT
+             }}
+
 
 # ################################################# #
 # DICTIONARY OF TABLE BLOCK NAMES WITH COLUMN NAMES #
