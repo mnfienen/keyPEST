@@ -191,7 +191,7 @@ class file_control:
                 elif tmp[1] in alltabnames:
                     self.tabblocks[tmp[1]].blockend = cline
                 else:
-                    raise(BlockMismatchNoEND(tmp[1]))
+                    raise(BlockMismatchNoBEGIN(tmp[1]))
                    
         # check for blocks that start without end 
         for cb in self.kwblocks:
@@ -447,17 +447,17 @@ class file_control:
             ofp.write('* automatic user intervention\n')
             mandatoryvals = ['MAXAUI', 'AUISTARTOPT', 'NOAUIPHIRAT', 'AUIRESTITN']
             mandatorytypes = ['int','int','float','int']
-            for i,cmand in mandatoryvals:
+            for i,cmand in enumerate(mandatoryvals):
                 write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
             ofp.write('\n')  
             mandatoryvals = ['AUISENSRAT', 'AUIHOLDMAXCHG', 'AUINUMFREE']
             mandatorytypes = ['float','int','int']
-            for i,cmand in mandatoryvals:
+            for i,cmand in enumerate(mandatoryvals):
                 write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
             ofp.write('\n')              
             mandatoryvals = ['AUIPHIRATSUF', 'AUIPHIRATACCEPT', 'NAUINOACCEPT']
             mandatorytypes = ['float','float','int']
-            for i,cmand in mandatoryvals:
+            for i,cmand in enumerate(mandatoryvals):
                 write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
             ofp.write('\n')  
         except KeyError:
@@ -763,8 +763,75 @@ class file_control:
             ofp.write('\n')
         except KeyError:
             pass  
+        # ###
+        # Write out optional predictive analysis block
+        # ###
+        # here comes a bit of a kludge to handle multiple spellings of regularization/regularisation
         
-        
+        if (('regularization' in self.kwblocks.keys()) and ('regularisation' in self.kwblocks.keys())):
+            raise(RegularizationDouleDipping('reg'))
+        elif ('regularization' in self.kwblocks.keys()):
+            cblock = 'regularization'
+        elif ('regularisation' in self.kwblocks.keys()):
+            cblock = 'regularisation'
+        else:
+            cblock = 0
+        if cblock:
+            cdict = self.kwblocks[cblock].kwdict
+            ofp.write('* regularisation\n')
+            # handle default values for PHIMLIM and PHIMACCEPT
+            if cdict['PHIMLIM'] == UNINIT_REAL:
+                cdict['PHIMLIM'] = self.kwblocks['control_data'].kwdict['NOBS']
+            if cdict['PHIMACCEPT'] == UNINIT_REAL:
+                cdict['PHIMACCEPT'] = float(cdict['PHIMLIM']) * 1.05                
+            mandatoryvals = ['PHIMLIM', 'PHIMACCEPT']
+            mandatorytypes = ['float','float']
+            optionalvals = ['FRACPHIM', 'MEMSAVE']
+            optionaltypes = ['float','string']
+            # check that all keys are present
+            for ckey in mandatoryvals:
+                if ckey not in  cdict.keys():
+                    raise(DefaultValueError(mandatoryvals[0],cblock))
+            for i,cmand in enumerate(mandatoryvals):
+                write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
+            for i,copt in enumerate(optionalvals):
+                try:
+                    write_val(ofp,cdict[copt],optionaltypes[i],copt,cblock)
+                except KeyError:
+                    pass
+            ofp.write('\n')
+            mandatoryvals = ['WFINIT', 'WFMIN', 'WFMAX']
+            mandatorytypes = ['float','float', 'float']
+            optionalvals = ['LINREG', 'REGCONTINUE']
+            optionaltypes = ['string','string']
+            # check that all keys are present
+            for ckey in mandatoryvals:
+                if ckey not in  cdict.keys():
+                    raise(DefaultValueError(mandatoryvals[0],cblock))
+            for i,cmand in enumerate(mandatoryvals):
+                write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
+            for i,copt in enumerate(optionalvals):
+                try:
+                    write_val(ofp,cdict[copt],optionaltypes[i],copt,cblock)
+                except KeyError:
+                    pass
+            ofp.write('\n')
+            mandatoryvals = ['WFFAC', 'WFTOL', 'IREGADJ']
+            mandatorytypes = ['float','float', 'int']
+            optionalvals = ['NOPTREGADJ', 'REGWEIGHTRAT', 'REGSINGTHRESH']
+            optionaltypes = ['int','float','float']
+            # check that all keys are present
+            for ckey in mandatoryvals:
+                if ckey not in  cdict.keys():
+                    raise(DefaultValueError(mandatoryvals[0],cblock))
+            for i,cmand in enumerate(mandatoryvals):
+                write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
+            for i,copt in enumerate(optionalvals):
+                try:
+                    write_val(ofp,cdict[copt],optionaltypes[i],copt,cblock)
+                except KeyError:
+                    pass
+            ofp.write('\n')
         ofp.close()
 # ###################################################### #
 # DICTIONARY OF KEWYWORD BLOCK NAMES, PARS, AND DEFAULTS #
@@ -1126,5 +1193,10 @@ class MissingBlockError(Exception):
         self.blockname = block
     def __str__(self):
         return('\n\nRequired Block "' + self.block + '" is missing')    
-    
+# -- regularization souble-dipping
+class RegularizationDouleDipping(Exception):
+    def __init__(self,block):
+        self.blockname = block
+    def __str__(self):
+        return('\n\nBoth "regularization" and "regularisation" blocks found.\nChoose one spelling option only!') 
     
