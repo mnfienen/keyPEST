@@ -21,7 +21,7 @@ def write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes,optionalvals=Fal
     # check that all mandatory keys are present
     for ckey in mandatoryvals:
         if ckey not in cdict.keys():
-            raise(DefaultValueError(mandatoryvals[0],cblock))
+            raise(DefaultValueError(ckey,cblock))
     for i,cmand in enumerate(mandatoryvals):
         write_val(ofp,cdict[cmand],mandatorytypes[i],cmand,cblock)
     if optionalvals != False:    
@@ -337,6 +337,10 @@ class file_control:
             for ckey in allpairs:
                 if ckey.upper() in legal_keywords:
                     cblock.kwdict[ckey.upper()] = allpairs[ckey]
+                # case especiale for the pesky pareto reporting keywords
+                elif i == 'pareto':
+                    if 'OBS_REPORT_' in ckey.upper():
+                        cblock.kwdict[ckey.upper()] = allpairs[ckey]    
 
     # ########################################### #
     # read each table block and populate the data #
@@ -800,6 +804,59 @@ class file_control:
             optionalvals = ['NOPTREGADJ', 'REGWEIGHTRAT', 'REGSINGTHRESH']
             optionaltypes = ['int','float','float']
             write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes,optionalvals,optionaltypes)
+        # ###
+        # Write out optional pareto block
+        # ###
+        cblock = 'pareto'
+        try:
+            cdict = self.kwblocks[cblock].kwdict
+            ofp.write('* pareto\n')
+            # write a line
+            mandatoryvals = ['PARETO_OBSGROUP']
+            mandatorytypes = ['string']
+            write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
+            # write a line
+            mandatoryvals = ['PARETO_WTFAC_START', 'PARETO_WTFAC_FIN', 'NUM_WTFAC_INC']
+            mandatorytypes = ['float','float','int']
+            write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
+            # write a line
+            mandatoryvals = ['NUM_ITER_START', 'NUM_ITER_GEN', 'NUM_ITER_FIN']
+            mandatorytypes = ['int','int','int']
+            write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
+            # write a line
+            mandatoryvals = ['ALT_TERM']
+            mandatorytypes = ['int']
+            write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
+            try:
+                cval = int(cdict['ALT_TERM'])
+            except:
+                raise(TypeFailError(cval,'ALT_TERM','int'))
+            if cval != 0:
+                # write a line
+                mandatoryvals = ['OBS_TERM', 'ABOVE_OR_BELOW', 'OBS_THRESH', 'NUM_ITER_THRESH']
+                mandatorytypes = ['string','string','float','int']
+                write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
+            # write a line
+            mandatoryvals = ['NOBS_REPORT']
+            mandatorytypes = ['int']
+            write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
+            try:
+                cval = int(cdict['NOBS_REPORT'])
+            except:
+                raise(TypeFailError(cval,'NOBS_REPORT','int'))
+            if cval > 0:
+                mandatoryvals = []
+                mandatorytypes = []
+                for crep in xrange(cval):
+                    mandatoryvals.append('OBS_REPORT_%d' %(crep+1))
+                    mandatorytypes.append('string')
+                write_KW_line(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
+        except KeyError:
+            pass            
+            
+            
+            
+            
         ofp.close()
 # ###################################################### #
 # DICTIONARY OF KEWYWORD BLOCK NAMES, PARS, AND DEFAULTS #
@@ -970,7 +1027,7 @@ kwblocks = {'control_data' : # ######################
              'NUM_ITER_START' : UNINIT_INT, 
              'NUM_ITER_GEN' : UNINIT_INT, 
              'NUM_ITER_FIN' : UNINIT_INT,
-             'ALT_TERM' : UNINIT_INT,
+             'ALT_TERM' : 0,
              'OBS_TERM' : UNINIT_REAL, 
              'ABOVE_OR_BELOW' : UNINIT_STRING, 
              'OBS_THRESH' : UNINIT_REAL, 
