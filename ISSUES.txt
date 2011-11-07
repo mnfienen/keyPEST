@@ -1,2 +1,9 @@
 1) for SVD, if MAXSING > NPAR will PEST bomb? 
-(where NPAR is adjustable, non-fixed pars)
+(\where NPAR is adjustable, non-fixed pars)
+   possible solution is to calculate number of non-fixed params
+
+2) Need to wrap in Cython
+
+3) need to grab input filename from command line
+
+

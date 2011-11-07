@@ -469,12 +469,15 @@ class file_control:
                 raise(TableBlockColError(i,cline,cblock.ncol,len(clabels)))
             for line in cbdata:
                 cline += 1
-                tmp = line.strip().split()
-                if i != 'prior_information':
-                    if len(tmp) != cblock.ncol:
+                if '#' in line:
+                    raise(TableCommentError(cline,cblock.blockname))
+                else:
+                    tmp = line.strip().split()
+                    if i != 'prior_information':
+                        if len(tmp) != cblock.ncol:
+                            raise(TableBlockColError(i,cline,cblock.ncol,len(tmp)))
+                    elif len(tmp) < 1: 
                         raise(TableBlockColError(i,cline,cblock.ncol,len(tmp)))
-                elif len(tmp) < 1: 
-                    raise(TableBlockColError(i,cline,cblock.ncol,len(tmp)))
             # now check the number of rows
             if len(cbdata) != cblock.nrow:
                 raise(TableBlockRowError(i,cblock.nrow,len(cbdata)))   
@@ -1357,4 +1360,18 @@ class ExternalFileOpenError(Exception):
         self.blockname = cblock
     def __str__(self):
         return('\n\nCannot open external file: ' + self.filename + ' for block: ' + self.blockname + '\n' ) 
+# -- no comments allowed in table blocks
+class TableCommentError(Exception):
+    def __init__(self,cline,cblock):
+        self.cline = cline
+        self.cblock = cblock
+    def __str__(self):
+        return('\n\nComments are not allowed in Table blocks.\nSee line ' + 
+               str(self.cline) + ' in block: ' + self.cblock + '\n')
 
+# -- no comments allowed in table blocks
+class InvalidInputExtension(Exception):
+    def __init__(self,filename):
+        self.cfile = filename
+    def __str__(self):
+        return('\n\nInvalid input filename: ' + self.cfile + '\nFile should be of format <casename>.key\n')

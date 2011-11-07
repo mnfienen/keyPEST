@@ -1,13 +1,21 @@
 #keyPEST --- a JUPITER-like keyword to PST translator for PEST++
 # a m!ke@usgs joint
 # Mike Fienen --> mnfienen@usgs.gov
-
+import sys
 import numpy as np
 from keyPESTdata import *
 
+# get the input filename from the command line
+infile  = sys.argv[1]
+if infile[-4:] != '.key':
+    raise(InvalidInputExtension(infile))
+else:
+    casename = infile[:-4]
+    
+
 # initialize the main control
-main_control = file_control('testcase.key',
-                            'testcase.pst',
+main_control = file_control(casename + '.key',
+                            casename + '.pst',
                             kwblocks.keys(),
                             tabblocks.keys(),
                             tabblockdicts)
