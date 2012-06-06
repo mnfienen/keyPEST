@@ -1,3 +1,4 @@
+import xml.etree.ElementTree as xml
 import numpy as np
 
 
@@ -175,7 +176,7 @@ class kw:
         self.kwdict = kwdict         # provided at initialization ---
                         # dict with keys -> parname, vals -> values                                   
         self.blockstart = blockstart # starting line for block
-        self.blockend = 0            # ending line for block
+        self.blockend = blockend     # ending line for block
 
 # ########################## #
 # Class to hold table blocks # 
@@ -189,7 +190,7 @@ class tb:
         self.colnames = colnames     # read in the column names
         self.extfile = UNINIT_STRING # external file in case of external
         self.blockstart = blockstart # starting line for block
-        self.blockend = 0            # ending line for block
+        self.blockend = blockend     # ending line for block
 
 
 # ########################### #
@@ -209,24 +210,204 @@ def dedupe(allv,uniqueval):
 # ################################################ #
 # Class to hold information about the in/out files #
 # ################################################ #
-class file_control:
+class file_control():
     # ############## #
     # INITIALIZATION #
     # ############## #
-    def __init__(self,infilename,outfilename,kws,tabs,tabblockdicts):
-        self.infile = infilename
-        self.outfile = outfilename
-        self.kwblocksall = kws
-        self.kwblocks = dict()
-        self.tabblocksall = tabs
-        self.tabblocks = dict()
-        self.tabblockdict = tabblockdicts
+    def __init__(self):
+        self.kwblocksall = kwblocks.keys()
+        self.kwblocks = dict()        
+        self.tabblocksall = tabblocks.keys()
+        self.tabblocks = dict()        
+        self.tabblockdict =  tabblockdicts
 
+    def read(self,fname):
+        '''a convience function to read in the desired type of input'''
+        if fname.upper().endswith('KEY'):
+            self.key_check_block_integrity(fname)
+            self.key_initialize_blocks()
+            self.key_read_keyword_blocks()
+            self.key_read_table_blocks()
+        elif fname.upper().endswith('XML'):
+            self.xml_read(fname)
+        else:
+            raise TypeError,'file type '+fname[-3:]+' not supported'
+        return
+
+    def write(self,fname):
+        '''a convience function to write out the desire type of output'''
+        if fname.upper().endswith('PST'):
+            self.pst_write(fname)
+        else:
+            raise TypeError,'file type '+fname[-3:]+' not supported'
+    
+    def xml_read(self,fname):        
+        #--load the xml tree
+        tree = xml.parse(fname) 
+        root = tree.getroot()
+        #--initialize the keyword and table blocks needed
+        self.xml_initialize(root)
+        #--fill the blocks
+        self.xml_fill(root)
+                          
+        return
+
+    def xml_fill(self,root):
+        '''fill the file_control object from the xml tree
+        '''
+        #--a list for the tied paramter mess
+        tied_list = []
+        for section in root:
+            #--cast the element text to a jupiter block tag
+            jup_text = '_'.join(section.text.split()[1:])
+            
+            #--fill the keyword blocks - easy           
+            if jup_text in self.kwblocks:                            
+                for entry in section:                   
+                    if 'value' in entry.attrib.keys():
+                        self.kwblocks[jup_text].kwdict[entry.tag] = entry.attrib['value']
+            
+            #--fill the table block - less easy            
+            elif jup_text in self.tabblocksall:                
+                
+                #--for each row in the table                    
+                for entry in section:
+                    isParam,isTied = self.xml_paramtied(entry)
+                    if isParam:                            
+                        partied = entry.find('PARTIED')
+                        if isTied:
+                            partied_val = partied.attrib['value']
+                            tied_list.append([entry.tag,partied_val])
+                        entry.remove(partied)
+                    #--for each (possible) column in the table                        
+                    for subentry in entry:                  
+                        #-- if this subentry has a value attribute                                      
+                        if 'value' in subentry.attrib.keys():                                                            
+                            #-- if this key already exists, append
+                            if subentry.tag in self.tabblockdict[jup_text].keys():
+                                self.tabblockdict[jup_text][subentry.tag].append(subentry.attrib['value'])
+                            #--otherwise, create a list for this key
+                            else:                                   
+                                self.tabblockdict[jup_text][subentry.tag] = [subentry.attrib['value']]
+                                 
+            
+            #--'model_input' and 'model_output' need special treatment
+            else:    
+                #--find the model interface tag
+                for i,entry in enumerate(section):
+                    inter_entry = entry.find('MODEL_INTERFACE_FILE')
+                    file_entry = entry.find('MODEL_FILE')                                                                                
+                    
+                    #--which key - TPL or INS?
+                    if inter_entry.attrib['value'].upper().endswith('TPL'):
+                        kkey = 'model_input'
+                        inter_file = 'TEMPFLE'
+                        model_file = 'INFLE'
+                    else:
+                        kkey = 'model_output'
+                        inter_file = 'INSFLE'
+                        model_file = 'OUTFLE'
+                    #--if this key already exists, append
+                    if inter_file in self.tabblockdict[kkey].keys():
+                        self.tabblockdict[kkey][inter_file].append(inter_entry.attrib['value']) 
+                        self.tabblockdict[kkey][model_file].append(file_entry.attrib['value']) 
+                    #--else, create a list for this key
+                    else:
+                        self.tabblockdict[kkey][inter_file] = [inter_entry.attrib['value']]
+                        self.tabblockdict[kkey][model_file] = [file_entry.attrib['value']] 
+                                                                                                         
+        #--add the tied parameter junk
+        if tied_list:
+            self.tabblockdict['parameter_tied_data']['PARNME'] = []
+            self.tabblockdict['parameter_tied_data']['PARTIED'] = []
+            for t in tied_list:
+                self.tabblockdict['parameter_tied_data']['PARNME'].append(t[0])
+                self.tabblockdict['parameter_tied_data']['PARTIED'].append(t[1])
+
+        #--cast the pi attributes to string
+        self.xml_pi2string()
+                
+        return
+
+    def xml_pi2string(self):
+        if 'prior_information' in self.tabblockdict.keys():
+            self.tabblockdict['prior_information']['PILINES'] = []
+            pi_dict = self.tabblockdict['prior_information']                
+            for i,pi_line in enumerate(pi_dict['PILBL']):
+                pi_str = pi_dict['PILBL'][i] + ' '+ pi_dict['PI_EQUATION'][i] + ' ' + pi_dict['WEIGHT'][i] + ' ' + pi_dict['OBGNME'][i]
+                self.tabblockdict['prior_information']['PILINES'].append(pi_str)           
+        return
+      
+    def xml_paramtied(self,entry):
+        '''checks if entry is a parameter entry and also if it is tied
+        returns isParam[bool],isTied[bool]
+        '''
+        partrans = entry.find('PARTRANS')
+        if partrans is None:
+            return False,False
+        partrans_val = partrans.attrib['value']
+        if partrans_val.upper() == 'TIED':
+            return True,True
+        else:
+            return True,False                                    
+
+    def xml_initialize(self,root):
+        '''initialize the keyword and table blocks present in the
+        xml tree
+
+        special treatment of the model i/o block and the tied parameter mess
+
+        '''
+        for section in root:
+            #--cast the element text to a jupiter block tag
+            jup_text = '_'.join(section.text.split()[1:])
+            
+            #--this is a keyword block
+            if jup_text in self.kwblocksall:
+                #--there can only be one of each keyword block
+                if jup_text in self.kwblocks.keys():
+                    raise TypeError,'duplicate keyword block found: '+jup_text                
+                self.kwblocks[jup_text]=kw(jup_text,kwblocks[jup_text])                
+               
+            #-- this is a table block
+            elif jup_text in self.tabblocksall:
+                #--there can only be one of each table block?
+                if jup_text in self.kwblocks.keys():
+                    raise TypeError,'duplicate table block found: '+jup_text
+                #--need a partied section?
+                if jup_text.upper() == 'PARAMETER_DATA':                    
+                    for entry in section:                        
+                        isParam,isTied = self.xml_paramtied(entry)
+                        if isTied:
+                            break
+                    if isTied:
+                        self.tabblocks['parameter_tied_data'] = tb('parameter_tied_data',tabblocks['parameter_tied_data'])                
+                self.tabblocks[jup_text] = tb(jup_text,tabblocks[jup_text])                
+            
+            #--'model_input' and 'model_output' need special treatment
+            else:    
+                #--find the model interface tag
+                for i,entry in enumerate(section):
+                    mod_inter = entry.find('MODEL_INTERFACE_FILE')
+                    
+                    #--if the model inteface tag was not found
+                    if mod_inter is None:
+                        raise TypeError,'unidentified block in XML file: '+jup_text
+                
+                    mod_inter_file = mod_inter.attrib['value']
+                    if mod_inter_file.upper().endswith('TPL'):
+                         self.tabblocks['model_input'] = tb('model_input',tabblocks['model_input'])    
+                    elif mod_inter_file.upper().endswith('INS'):
+                         self.tabblocks['model_output'] = tb('model_output',tabblocks['model_output'])    
+                    else:
+                        raise TypeError,'unidentified model interface file'+mod_inter_file
+                            
+        return
     # ################################################### #
     # Learn block names, bomb on duplicates or bad syntax #
     # ################################################### #
-    def check_block_integrity(self):
-        self.indat = open(self.infile,'r').readlines()
+    def key_check_block_integrity(self,infile):
+        self.indat = open(infile,'r').readlines()
         cline = -1
         # first find all block names and types
         allbegins = list()
@@ -273,12 +454,10 @@ class file_control:
         dupes = np.unique(np.array(dupes))
         if len(dupes) > 0:
             raise(BlockDuplicate(dupes))
-
-
     # ################################################################## #
     # Set starting and ending row numbers, bomb on wrongly nested blocks #
     # ################################################################## #
-    def initialize_blocks(self):        
+    def key_initialize_blocks(self):        
         cline = -1
         # read through and create the block classes, just finding BEGINs of blocks
         for line in self.indat:    
@@ -372,7 +551,7 @@ class file_control:
     # ################################################# #
     # read each keyword block and populate the keywords #
     # ################################################# #
-    def read_keyword_blocks(self):
+    def key_read_keyword_blocks(self):
         for i in self.kwblocks:
             # cblock is shorthand for the current block
             cblock = self.kwblocks[i]
@@ -406,11 +585,10 @@ class file_control:
                 elif i == 'pareto':
                     if 'OBS_REPORT_' in ckey.upper():
                         cblock.kwdict[ckey.upper()] = allpairs[ckey]    
-
     # ########################################### #
     # read each table block and populate the data #
     # ########################################### #
-    def read_table_blocks(self):
+    def key_read_table_blocks(self):
         for i in self.tabblocks:
             # cblock is shorthand for the current block
             cblock = self.tabblocks[i]
@@ -502,9 +680,9 @@ class file_control:
     # ###################### #
     # Write out the PST file #
     # ###################### #
-    def write_pst_file(self):
+    def pst_write(self,outfile):
         # open an output file
-        ofp = open(self.outfile,'w')
+        ofp = open(outfile,'w')
         # ###
         # Write out mandatory control data block
         # ###
@@ -929,38 +1107,40 @@ class file_control:
         # Write out optional pest++ block
         # ###
         cblock = 'pest++'
+        isPestpp = True
         try:
             cdict = self.kwblocks[cblock].kwdict
             ofp.write('++# PEST++ section generated by keyPEST\n')            
         except KeyError:
-            pass  
-        if cdict['HOST'] == UNINIT_STRING:
-            raise(DefaultValueError('HOST',cblock))
-        else:
-            chost = cdict['HOST']
-        if cdict['PORT'] == UNINIT_INT:
-            raise(DefaultValueError('PORT',cblock))
-        else:
-            try:
-                cport = int(cdict['PORT'])
-            except:
-                raise(TypeFailError(cdict['PORT'],'PORT','int'))
-        cdict['GMAN_SOCKET'] = str(chost) + ":" + str(cport)
-        # write a line
-        mandatoryvals = ['GMAN_SOCKET']
-        mandatorytypes = ['string']
-        ofp.write('++ ')
-        write_KW_line_ppp(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
-        # write a line
-        mandatoryvals = ['SUPER_NMAX','SUPER_EIGTHRES']
-        mandatorytypes = ['int','real']
-        ofp.write('++ ')
-        write_KW_line_ppp(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
-        # write a line
-        mandatoryvals = ['N_ITER_BASE','N_ITER_SUPER']
-        mandatorytypes = ['int','int']
-        ofp.write('++ ')
-        write_KW_line_ppp(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
+            isPestpp = False           
+        if isPestpp:    
+            if cdict['HOST'] == UNINIT_STRING:
+                raise(DefaultValueError('HOST',cblock))
+            else:
+                chost = cdict['HOST']
+            if cdict['PORT'] == UNINIT_INT:
+                raise(DefaultValueError('PORT',cblock))
+            else:
+                try:
+                    cport = int(cdict['PORT'])
+                except:
+                    raise(TypeFailError(cdict['PORT'],'PORT','int'))
+            cdict['GMAN_SOCKET'] = str(chost) + ":" + str(cport)
+            # write a line
+            mandatoryvals = ['GMAN_SOCKET']
+            mandatorytypes = ['string']
+            ofp.write('++ ')
+            write_KW_line_ppp(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
+            # write a line
+            mandatoryvals = ['SUPER_NMAX','SUPER_EIGTHRES']
+            mandatorytypes = ['int','real']
+            ofp.write('++ ')
+            write_KW_line_ppp(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
+            # write a line
+            mandatoryvals = ['N_ITER_BASE','N_ITER_SUPER']
+            mandatorytypes = ['int','int']
+            ofp.write('++ ')
+            write_KW_line_ppp(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
                  
         # ######
         # CLOSE THE PST FILE
@@ -1061,23 +1241,23 @@ kwblocks = {'control_data' : # ######################
             'derivatives_command_line': # ######################
             {'DERCOMLINE' : UNINIT_STRING,
              'EXTDERFLE' : UNINIT_STRING},
-            'model_command_line' : # ######################
-            {'NPREDMAXMIN' : UNINIT_INT,
-             'PREDNOISE' : UNINIT_INT,
-             'PD0' : UNINIT_REAL, 
-             'PD1' : UNINIT_REAL, 
-             'PD2' : UNINIT_REAL,
-             'ABSPREDLAM' : UNINIT_REAL,
-             'RELPREDLAM' : UNINIT_REAL,
-             'INITSCHFAC' : UNINIT_REAL,
-             'MULSCHFAC' : UNINIT_REAL,
-             'NSEARCH' : UNINIT_INT,
-             'ABSPREDSWH' : UNINIT_REAL,
-             'RELPREDSWH' : UNINIT_REAL,
-             'NPREDNORED' : UNINIT_INT,
-             'ABSPREDSTP' : UNINIT_REAL,
-             'RELPREDSTP' : UNINIT_REAL,
-             'NPREDSTP' : UNINIT_INT},
+            #'model_command_line' : # ######################
+            #{'NPREDMAXMIN' : UNINIT_INT,
+            # 'PREDNOISE' : UNINIT_INT,
+            # 'PD0' : UNINIT_REAL, 
+            # 'PD1' : UNINIT_REAL, 
+            # 'PD2' : UNINIT_REAL,
+            # 'ABSPREDLAM' : UNINIT_REAL,
+            # 'RELPREDLAM' : UNINIT_REAL,
+            # 'INITSCHFAC' : UNINIT_REAL,
+            # 'MULSCHFAC' : UNINIT_REAL,
+            # 'NSEARCH' : UNINIT_INT,
+            # 'ABSPREDSWH' : UNINIT_REAL,
+            # 'RELPREDSWH' : UNINIT_REAL,
+            # 'NPREDNORED' : UNINIT_INT,
+            # 'ABSPREDSTP' : UNINIT_REAL,
+            # 'RELPREDSTP' : UNINIT_REAL,
+            # 'NPREDSTP' : UNINIT_INT},
             'regularisation' : # ######################
             # -- kludge here. Must ensure that 'regularization' data matches ' regularisation'
             {'PHIMLIM' : UNINIT_REAL, # SET DEFAULT AS NOBS
@@ -1204,7 +1384,6 @@ class BlockSyntaxError(Exception):
         self.value = cline
     def __str__(self):
         return('\n\nBlock input syntax ERROR: Illegal word on line: ' + str(self.value+1))
-
 # -- illegal block name
 class BlockNameError(Exception):
     def __init__(self,cline,cname):
@@ -1212,9 +1391,6 @@ class BlockNameError(Exception):
         self.cname = cname
     def __str__(self):
         return('\n\nBlock name ERROR: Illegal blockname "' + self.cname + '" on line: ' + str(self.value+1))
-
-
-
 # -- duplicate block names used
 class BlockDuplicate(Exception):
     def __init__(self,dupes):
@@ -1224,7 +1400,6 @@ class BlockDuplicate(Exception):
         for i in self.dupes:
             print i
         return
-
 # -- mismatched begin and end 1
 class BlockMismatchNoEND(Exception):
     def __init__(self,blname):
@@ -1336,7 +1511,7 @@ class MissingBlockError(Exception):
     def __init__(self,block):
         self.blockname = block
     def __str__(self):
-        return('\n\nRequired Block "' + self.block + '" is missing')    
+        return('\n\nRequired Block "' + self.blockname + '" is missing')    
 # -- regularization double-dipping
 class RegularizationDouleDipping(Exception):
     def __init__(self,block):
@@ -1368,7 +1543,6 @@ class TableCommentError(Exception):
     def __str__(self):
         return('\n\nComments are not allowed in Table blocks.\nSee line ' + 
                str(self.cline) + ' in block: ' + self.cblock + '\n')
-
 # -- no comments allowed in table blocks
 class InvalidInputExtension(Exception):
     def __init__(self,filename):
