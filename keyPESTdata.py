@@ -1,3 +1,4 @@
+import copy
 import xml.etree.ElementTree as xml
 import numpy as np
 
@@ -6,6 +7,7 @@ import numpy as np
 UNINIT_STRING = 'unititialized'
 UNINIT_REAL   = '-9.9999e25'
 UNINIT_INT    = '-99999'
+UNINIT = [UNINIT_STRING,UNINIT_REAL,UNINIT_INT]
 
 # ############################################################################### #
 # Function to write out a KW block line to the PST file for pest++ variables only #
@@ -238,9 +240,107 @@ class file_control():
         '''a convience function to write out the desire type of output'''
         if fname.upper().endswith('PST'):
             self.pst_write(fname)
+        elif fname.upper().endswith('XML'):
+            self.xml_write(fname)
         else:
             raise TypeError,'file type '+fname[-3:]+' not supported'
     
+    def xml_write(self,fname):
+        #--instance of an XML tree
+        root = xml.Element('pcf')
+        #--keyword blocks - easy               
+        temp = []
+        for name in self.kwblocks.keys():
+            section = self.xml_write_kwBlock(name,block_text=jup2pst[name])
+            #--make sure control section is first - no reason really
+            if name == 'control_data':
+                root.append(section)
+            else:
+                temp.append(section)
+        for t in temp:
+            root.append(t)
+        
+        #--table blocks - less easy
+        for name in self.tabblockdict.keys():
+            if name is not 'parameter_tied_data':
+                section = self.xml_write_tblBlock(name,block_text=jup2pst[name])
+                if section:
+                    root.append(section)
+
+        #--write the XML file - crazy easy
+        self.xml_indent(root)
+        xml.ElementTree(root).write(fname)
+        return
+
+    def xml_write_tblBlock(self,block_name,block_text=''):
+        '''write a table block to an XML element        
+        '''
+        section = None
+        block_dict = self.tabblockdict[block_name]             
+        if len(block_dict.keys()) > 0:
+            section = xml.Element('section')
+            section.text = block_text   
+            for i,pdict in enumerate(block_dict[block_dict.keys()[0]]):
+                tag = block_dict[table2tag[block_name]][i]
+                entry = xml.Element(tag) 
+                #--use temp as container that can be sorted
+                temp = []
+                for k,v in block_dict.iteritems():
+                    sub_entry = xml.Element(k)
+                    if v[i] not in UNINIT:
+                        sub_entry.set('value',str(v[i]))
+                        temp.append((k,sub_entry))
+                #--sort and add sub-elements to entry
+                temp.sort()
+                for t in temp:
+                    entry.append(t[1]) 
+                section.append(copy.deepcopy(entry))                                                                          
+        return section
+
+
+
+    def xml_write_kwBlock(self,block_name,block_text=''):
+        '''write a keyword block to an XML element
+        sorts the subelements by tag
+        '''
+        block_dict = self.kwblocks[block_name].kwdict
+        section = xml.Element('section')
+        section.text = block_text
+        temp = []
+        for k,v in block_dict.iteritems():            
+            entry = xml.Element(k)
+            if v not in UNINIT:
+                entry.set('value',str(v))
+            #section.append(entry) 
+            temp.append((k,entry))
+        temp.sort()
+        for t in temp:
+            section.append(t[1])
+        return section
+
+    def xml_indent(self,elem,level=0):
+        '''for prettyprinting XML
+        '''
+        i = "\n" + level*"  "
+        if len(elem):        
+        
+            if not elem.text or not elem.text.strip():
+            #try:
+            #    elem.text += i + "  "
+            #except TypeError:
+                elem.text = i + "  "
+            else:
+                elem.text += i + "  "                            
+            if (not elem.tail or not elem.tail.strip()) :
+                elem.tail = i
+            for elem in elem:
+                self.xml_indent(elem, level+1)
+            if not elem.tail or not elem.tail.strip():
+                elem.tail = i
+        else:
+            if level and (not elem.tail or not elem.tail.strip()):
+                elem.tail = i
+                
     def xml_read(self,fname):        
         #--load the xml tree
         tree = xml.parse(fname) 
@@ -1331,6 +1431,38 @@ kwblocks = {'control_data' : # ######################
              'SUPER_EIGTHRES' : 5.0E-07,
              'SUPER_NMAX' : UNINIT_INT
              }}
+
+
+jup2pst = {'control_data':'* control data',
+           'lsqr':'* lsqr',
+           'svd_assist':'* svd assist',
+           'automatic_user_intervention':'* automatic user intervention',
+           'singular_value_decomposition':'* singular value decomposition',
+           'regularization':'* regularisation',
+           'regularisation':'* regularisation',
+           'pareto':'* pareto',
+           'sensitivity_reuse':'* sensitivity reuse',
+           'predictive_analysis':'* predictive analysis',
+           'model_command_line':'* model command line',
+           'derivatives_command_line':'* derivatives command line',
+           'parameter_groups':'* parameter groups',
+           'parameter_data':'* parameter data',            
+           'observation_groups':'* observation groups',
+           'observation_data':'* observation data',
+           'model_input':'model input/output',           
+           'model_output':'* model input/output',
+           'prior_information':'* prior information',
+           'pest++':'pest++'}
+
+table2tag = {'parameter_groups':'PARGPNME',
+             'parameter_data':'PARNME',
+             'observation_groups':'OBGNME',
+             'observation_data':'OBSNME',
+             'model_command_line':'COMLINE',
+             'model_output':'INSFLE',
+             'model_input':'TEMPFLE',
+             'prior_information':'PILINES'}
+
 
 
 # ################################################# #
