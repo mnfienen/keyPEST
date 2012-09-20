@@ -3,8 +3,8 @@
 # Mike Fienen --> mnfienen@usgs.gov
 import sys
 import numpy as np
-from keyPESTdata import *
-
+import keyPESTdata as kp
+reload(kp)
 # get the input filename from the command line
 infile  = sys.argv[1]
 if infile[-4:] != '.key':
@@ -14,12 +14,8 @@ else:
     
 
 # initialize the main control
-main_control = file_control(casename + '.key',
-                            casename + '.pst',
-                            kwblocks.keys(),
-                            tabblocks.keys(),
-                            tabblockdicts)
-
+main_control = kp.file_control(casename+'.key',casename+'.pst')
+                           
 
 # read over the file once to evaluate blocknames and detect major syntax errors
 main_control.check_block_integrity()

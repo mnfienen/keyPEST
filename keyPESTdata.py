@@ -1,10 +1,21 @@
+import sys
+import copy
+import xml.etree.ElementTree as xml
 import numpy as np
+
+try:
+    import xlrd
+except:
+    print 'You need to get the \'XLRD\' module to use the'+\
+          ' keyPEST EXCEL support functionality'
+    sys.exit()
 
 
 # set a few constants
 UNINIT_STRING = 'unititialized'
 UNINIT_REAL   = '-9.9999e25'
 UNINIT_INT    = '-99999'
+UNINIT = [UNINIT_STRING,UNINIT_REAL,UNINIT_INT]
 
 # ############################################################################### #
 # Function to write out a KW block line to the PST file for pest++ variables only #
@@ -175,7 +186,7 @@ class kw:
         self.kwdict = kwdict         # provided at initialization ---
                         # dict with keys -> parname, vals -> values                                   
         self.blockstart = blockstart # starting line for block
-        self.blockend = 0            # ending line for block
+        self.blockend = blockend     # ending line for block
 
 # ########################## #
 # Class to hold table blocks # 
@@ -189,7 +200,7 @@ class tb:
         self.colnames = colnames     # read in the column names
         self.extfile = UNINIT_STRING # external file in case of external
         self.blockstart = blockstart # starting line for block
-        self.blockend = 0            # ending line for block
+        self.blockend = blockend     # ending line for block
 
 
 # ########################### #
@@ -209,24 +220,388 @@ def dedupe(allv,uniqueval):
 # ################################################ #
 # Class to hold information about the in/out files #
 # ################################################ #
-class file_control:
+class file_control():
     # ############## #
     # INITIALIZATION #
     # ############## #
-    def __init__(self,infilename,outfilename,kws,tabs,tabblockdicts):
-        self.infile = infilename
-        self.outfile = outfilename
-        self.kwblocksall = kws
-        self.kwblocks = dict()
-        self.tabblocksall = tabs
-        self.tabblocks = dict()
-        self.tabblockdict = tabblockdicts
+    def __init__(self):
+        self.kwblocksall = kwblocks.keys()
+        self.kwblocks = dict()        
+        self.tabblocksall = tabblocks.keys()
+        self.tabblocks = dict()        
+        self.tabblockdict =  tabblockdicts
+
+    def read(self,fname):
+        '''a convience function to read in the desired type of input'''
+        if fname.upper().endswith('KEY'):
+            self.key_check_block_integrity(fname)
+            self.key_initialize_blocks()
+            self.key_read_keyword_blocks()
+            self.key_read_table_blocks()
+        elif fname.upper().endswith('XML'):
+            self.xml_read(fname)
+        else:
+            raise TypeError,'file type '+fname[-3:]+' not supported'
+        return
+
+    def write(self,fname):
+        '''a convience function to write out the desire type of output'''
+        if fname.upper().endswith('PST'):
+            self.pst_write(fname)
+        elif fname.upper().endswith('XML'):
+            self.xml_write(fname)
+        else:
+            raise TypeError,'file type '+fname[-3:]+' not supported'
+    
+    def xml_write(self,fname):
+        #--instance of an XML tree
+        root = xml.Element('pcf')
+        #--keyword blocks - easy               
+        temp = []
+        for name in self.kwblocks.keys():
+            section = self.xml_write_kwBlock(name,block_text=jup2pst[name])
+            #--make sure control section is first - no reason really
+            if name == 'control_data':
+                root.append(section)
+            else:
+                temp.append(section)
+        for t in temp:
+            root.append(t)
+        
+        #--table blocks - less easy
+        partied_section = None
+        for name in self.tabblockdict.keys():            
+                section = self.xml_write_tblBlock(name,block_text=jup2pst[name])
+                if section is not None and name is not 'parameter_tied_data':
+                    #-- check for duplicate sections - model i/o mess
+                    isDup = False
+                    for ssection in root:                        
+                        if ssection.text == section.text:
+                            for element in section:
+                                ssection.append(element)
+                            isDup = True
+                            break
+                    if not isDup:
+                        root.append(section)
+
+                elif section is not None and name is 'parameter_tied_data':
+                    partied_section = section
+        
+        #--tied parameter mess
+        if partied_section is not None:
+            #--find the parameter data section            
+            par_section = None
+            for section in root:
+                if section.text == '* parameter data':
+                    par_section = section
+                    break            
+            #--for each parameter entry
+            for par_entry in par_section:
+                #--for each tied parameter entry:
+                for tied_entry in partied_section:                    
+                    if tied_entry.tag == par_entry.tag:
+                        #--get the value of the 'partied' attribute
+                        partied_val = tied_entry.find('PARTIED').attrib['value']                                                
+                        #--find the partied element of the parameter entry and add the value attribute
+                        par_entry.find('PARTIED').set('value',partied_val)
+                        break                                                                       
+        
+        #--write the XML file - crazy easy
+        self.xml_indent(root)
+        xml.ElementTree(root).write(fname)
+        return
+
+    def xml_write_tblBlock(self,block_name,block_text=''):
+        '''write a table block to an XML element        
+        '''
+        section = None
+        block_dict = self.tabblockdict[block_name]             
+        if len(block_dict.keys()) > 0:
+            section = xml.Element('section')
+            section.text = block_text   
+            for i,pdict in enumerate(block_dict[block_dict.keys()[0]]):
+                tag = block_dict[table2tag[block_name]][i]
+                entry = xml.Element(tag) 
+                #--use temp as container that can be sorted
+                temp = []
+                for k,v in block_dict.iteritems():
+                    sub_entry = xml.Element(k)
+                    if v[i] not in UNINIT:
+                        sub_entry.set('value',str(v[i]))
+                    temp.append((k,sub_entry))
+                
+                #--if this is the parameter data section, add a partied element
+                if block_name == 'parameter_data':
+                    temp.append(('PARTIED',xml.Element('PARTIED')))
+
+                #--sort and add sub-elements to entry
+                temp.sort()
+                for t in temp:
+                    entry.append(t[1]) 
+                section.append(copy.deepcopy(entry))                                                                          
+        return section
+
+    def xml_write_kwBlock(self,block_name,block_text=''):
+        '''write a keyword block to an XML element
+        sorts the subelements by tag
+        '''
+        block_dict = self.kwblocks[block_name].kwdict
+        section = xml.Element('section')
+        section.text = block_text
+        temp = []
+        for k,v in block_dict.iteritems():            
+            entry = xml.Element(k)
+            if v not in UNINIT:
+                entry.set('value',str(v))
+            #section.append(entry) 
+            temp.append((k,entry))
+        temp.sort()
+        for t in temp:
+            section.append(t[1])
+        return section
+
+    def xml_indent(self,elem,level=0):
+        '''for prettyprinting XML
+        '''
+        i = "\n" + level*"  "
+        if len(elem):        
+        
+            if not elem.text or not elem.text.strip():
+            #try:
+            #    elem.text += i + "  "
+            #except TypeError:
+                elem.text = i + "  "
+            else:
+                elem.text += i + "  "                            
+            if (not elem.tail or not elem.tail.strip()) :
+                elem.tail = i
+            for elem in elem:
+                self.xml_indent(elem, level+1)
+            if not elem.tail or not elem.tail.strip():
+                elem.tail = i
+        else:
+            if level and (not elem.tail or not elem.tail.strip()):
+                elem.tail = i
+                
+    def xml_read(self,fname):        
+        #--load the xml tree
+        tree = xml.parse(fname) 
+        root = tree.getroot()
+        #--initialize the keyword and table blocks needed
+        self.xml_initialize(root)
+        #--fill the blocks
+        self.xml_fill(root)
+                          
+        return
+
+    def xml_fill(self,root):
+        '''fill the file_control object from the xml tree
+        '''
+        #--a list for the tied paramter mess
+        tied_list = []
+        for section in root:
+            #--cast the element text to a jupiter block tag
+            jup_text = '_'.join(section.text.split()[1:])
+            
+            #--fill the keyword blocks - easy           
+            if jup_text in self.kwblocks:                            
+                for entry in section:                   
+                    if 'value' in entry.attrib.keys():
+                        self.kwblocks[jup_text].kwdict[entry.tag] = entry.attrib['value']
+            
+            #--fill the table block - less easy            
+            elif jup_text in self.tabblocksall:                
+                #--check for a 'spreadsheet' element
+                xls_entry = section.find('SPREADSHEET')
+                if xls_entry is not None:
+                    fname = xls_entry.attrib['file']
+                    if fname.upper().endswith('XLSX'):
+                        raise TypeError,'Only XLS EXCEL files are supported, resave as EXCEL 97-2003 workbook'
+                    elif fname.upper().endswith('XLS'):
+                        self.read_xls_table(fname,self.tabblocks[jup_text])
+                    else:
+                        raise TypeError,'Unrecognized extension for spreadsheet file: '+fname
+
+
+                #--for each row in the table                    
+                for entry in section:
+                    isParam,isTied = self.xml_paramtied(entry)
+                    if isParam:                            
+                        partied = entry.find('PARTIED')
+                        if isTied:
+                            partied_val = partied.attrib['value']
+                            tied_list.append([entry.tag,partied_val])
+                        entry.remove(partied)
+                    #--for each (possible) column in the table                        
+                    for subentry in entry:                  
+                        #-- if this subentry has a value attribute                                      
+                        if 'value' in subentry.attrib.keys():                                                            
+                            #-- if this key already exists, append
+                            if subentry.tag in self.tabblockdict[jup_text].keys():
+                                self.tabblockdict[jup_text][subentry.tag].append(subentry.attrib['value'])
+                            #--otherwise, create a list for this key
+                            else:                                   
+                                self.tabblockdict[jup_text][subentry.tag] = [subentry.attrib['value']]
+                                 
+            
+            #--'model_input' and 'model_output' need special treatment
+            else:    
+                #--find the model interface tag
+                for i,entry in enumerate(section):
+                    inter_entry = entry.find('MODEL_INTERFACE_FILE')
+                    file_entry = entry.find('MODEL_FILE')                                                                                
+                    
+                    #--which key - TPL or INS?
+                    if inter_entry.attrib['value'].upper().endswith('TPL'):
+                        kkey = 'model_input'
+                        inter_file = 'TEMPFLE'
+                        model_file = 'INFLE'
+                    else:
+                        kkey = 'model_output'
+                        inter_file = 'INSFLE'
+                        model_file = 'OUTFLE'
+                    #--if this key already exists, append
+                    if inter_file in self.tabblockdict[kkey].keys():
+                        self.tabblockdict[kkey][inter_file].append(inter_entry.attrib['value']) 
+                        self.tabblockdict[kkey][model_file].append(file_entry.attrib['value']) 
+                    #--else, create a list for this key
+                    else:
+                        self.tabblockdict[kkey][inter_file] = [inter_entry.attrib['value']]
+                        self.tabblockdict[kkey][model_file] = [file_entry.attrib['value']] 
+                                                                                                         
+        #--add the tied parameter junk
+        if tied_list:
+            self.tabblockdict['parameter_tied_data']['PARNME'] = []
+            self.tabblockdict['parameter_tied_data']['PARTIED'] = []
+            for t in tied_list:
+                self.tabblockdict['parameter_tied_data']['PARNME'].append(t[0])
+                self.tabblockdict['parameter_tied_data']['PARTIED'].append(t[1])
+
+        #--cast the pi attributes to string
+        self.xml_pi2string()                
+        return
+
+    
+    def xml_pi2string(self):
+        if 'prior_information' in self.tabblockdict.keys():
+            self.tabblockdict['prior_information']['PILINES'] = []
+            pi_dict = self.tabblockdict['prior_information']                
+            for i,pi_line in enumerate(pi_dict['PILBL']):
+                pi_str = pi_dict['PILBL'][i] + ' '+ pi_dict['PI_EQUATION'][i] + ' ' + pi_dict['WEIGHT'][i] + ' ' + pi_dict['OBGNME'][i]
+                self.tabblockdict['prior_information']['PILINES'].append(pi_str)           
+        return
+      
+    def xml_paramtied(self,entry):
+        '''checks if entry is a parameter entry and also if it is tied
+        returns isParam[bool],isTied[bool]
+        '''
+        partrans = entry.find('PARTRANS')
+        if partrans is None:
+            return False,False
+        partrans_val = partrans.attrib['value']
+        if partrans_val.upper() == 'TIED':
+            return True,True
+        else:
+            return True,False                                    
+
+    def xml_initialize(self,root):
+        '''initialize the keyword and table blocks present in the
+        xml tree
+
+        special treatment of the model i/o block and the tied parameter mess
+
+        '''
+        for section in root:
+            #--cast the element text to a jupiter block tag
+            jup_text = '_'.join(section.text.split()[1:])
+            
+            #--this is a keyword block
+            if jup_text in self.kwblocksall:
+                #--there can only be one of each keyword block
+                if jup_text in self.kwblocks.keys():
+                    raise TypeError,'duplicate keyword block found: '+jup_text                
+                self.kwblocks[jup_text]=kw(jup_text,kwblocks[jup_text])                
+               
+            #-- this is a table block
+            elif jup_text in self.tabblocksall:
+                #--there can only be one of each table block?
+                if jup_text in self.kwblocks.keys():
+                    raise TypeError,'duplicate table block found: '+jup_text
+                #--need a partied section?
+                if jup_text.upper() == 'PARAMETER_DATA':                    
+                    for entry in section:                        
+                        isParam,isTied = self.xml_paramtied(entry)
+                        if isTied:
+                            break
+                    if isTied:
+                        self.tabblocks['parameter_tied_data'] = tb('parameter_tied_data',tabblocks['parameter_tied_data'])                
+                self.tabblocks[jup_text] = tb(jup_text,tabblocks[jup_text])                
+            
+            #--'model_input' and 'model_output' need special treatment
+            else:    
+                #--find the model interface tag
+                for i,entry in enumerate(section):
+                    mod_inter = entry.find('MODEL_INTERFACE_FILE')
+                    
+                    #--if the model inteface tag was not found
+                    if mod_inter is None:
+                        raise TypeError,'unidentified block in XML file: '+jup_text
+                
+                    mod_inter_file = mod_inter.attrib['value']
+                    if mod_inter_file.upper().endswith('TPL'):
+                         self.tabblocks['model_input'] = tb('model_input',tabblocks['model_input'])    
+                    elif mod_inter_file.upper().endswith('INS'):
+                         self.tabblocks['model_output'] = tb('model_output',tabblocks['model_output'])    
+                    else:
+                        raise TypeError,'unidentified model interface file'+mod_inter_file
+                            
+        return
+    
+    def read_xls_table(self,fname,block):
+        #--open the workbook
+        wb = xlrd.open_workbook(fname)
+        #--assume the table is on sheet 1
+        sh = wb.sheet_by_index(0)
+        #--check for a header in the first row
+        row1 = sh.row_values(0)
+        hasHeader = True
+        for r in row1:
+            if r.upper() not in block.colnames:
+                hasHeader = False
+                break
+
+        #--if no header, got to make some assumptions about column ordering 
+        if not hasHeader:
+            if len(row1) != len(block.colnames):
+                raise IndexError,'wrong number of columns in XLS '+fname+'\n'+\
+                      'consider using a header row:\n'+block.colnames
+            else:
+                print 'no header found in XLS '+fname+'assuming column order'
+            header = block.colnames
+        else:
+            header = row1
+                     
+        #--get column 1 to check that all cols are the same length
+        col1 = sh.col_values(0)                    
+                             
+        #--append each column to self.tabblockdict
+        for i in range(sh.ncols):              
+            col  = sh.col_values(i)
+            if len(col) != len(col1):
+                raise IndexError,'not all columns are the same length in XLS '+fname
+            if hasHeader:
+                col = col[1:]            
+            head = header[i]
+            self.tabblockdict[block.blockname][head] = col
+            print              
+
+        return []
 
     # ################################################### #
     # Learn block names, bomb on duplicates or bad syntax #
     # ################################################### #
-    def check_block_integrity(self):
-        self.indat = open(self.infile,'r').readlines()
+    def key_check_block_integrity(self,infile):
+        self.indat = open(infile,'r').readlines()
         cline = -1
         # first find all block names and types
         allbegins = list()
@@ -273,12 +648,10 @@ class file_control:
         dupes = np.unique(np.array(dupes))
         if len(dupes) > 0:
             raise(BlockDuplicate(dupes))
-
-
     # ################################################################## #
     # Set starting and ending row numbers, bomb on wrongly nested blocks #
     # ################################################################## #
-    def initialize_blocks(self):        
+    def key_initialize_blocks(self):        
         cline = -1
         # read through and create the block classes, just finding BEGINs of blocks
         for line in self.indat:    
@@ -372,7 +745,7 @@ class file_control:
     # ################################################# #
     # read each keyword block and populate the keywords #
     # ################################################# #
-    def read_keyword_blocks(self):
+    def key_read_keyword_blocks(self):
         for i in self.kwblocks:
             # cblock is shorthand for the current block
             cblock = self.kwblocks[i]
@@ -406,19 +779,19 @@ class file_control:
                 elif i == 'pareto':
                     if 'OBS_REPORT_' in ckey.upper():
                         cblock.kwdict[ckey.upper()] = allpairs[ckey]    
-
     # ########################################### #
     # read each table block and populate the data #
     # ########################################### #
-    def read_table_blocks(self):
+    def key_read_table_blocks(self):
         for i in self.tabblocks:
             # cblock is shorthand for the current block
             cblock = self.tabblocks[i]
             # set the list of legal keys
             legal_columns = cblock.colnames
-            # ## handle external files ability
+            # ## handle external files ability, including XLS
+            isExcel = False
             if 'file' in self.indat[cblock.blockstart].lower():
-                tmp1 = []
+                tmp1 = []               
                 tmp = self.indat[cblock.blockstart+1:cblock.blockend]
                 for line in tmp:
                     tval = line.strip().split()
@@ -428,83 +801,91 @@ class file_control:
                 if len(tmp1) > 1:
                     raise(ExternalFileError(tmp1,i))
                 else:
-                    try:
-                        cbdata = open(tmp1[0].strip(),'r').readlines()
-                    except:
-                        raise(ExternalFileOpenError(tmp1[0],i))
+                    if tmp1[0].strip().upper().endswith('XLSX'):
+                        raise TypeError,'Only .XLS EXCEL files are supported, resave as EXCEL 97-2003 workbook'
+                    elif tmp1[0].strip().upper().endswith('XLS'):
+                        self.read_xls_table(tmp1[0].strip(),cblock)
+                        isExcel = True
+                    else:
+                        try:
+                            cbdata = open(tmp1[0].strip(),'r').readlines()
+                        except:
+                            raise(ExternalFileOpenError(tmp1[0],i))
             else:
                 #read between the boundaries of the block
                 cbdata = self.indat[cblock.blockstart+1:cblock.blockend]
-            # pull out the header information and parse nrow and ncol
-            cheader = cbdata.pop(0)
-            header_data = cheader.strip().split('=')
-            hd = []
-            for j in header_data:
-                hd.extend(j.split())
-            # check that the header information is correctly formatted
-            if len(hd) == 0:
-                raise(TableBlockEmpty(i,cblock.blockstart+2))
-            try:
-                if ((hd[0].lower() == 'nrow') and
-                    (hd[2].lower() == 'ncol') and
-                    (hd[4].lower() == 'columnlabels')):
-                    try:
-                        cblock.nrow = int(hd[1])
-                    except:
-                        raise(TableBlockHeaderError(cblock.blockstart+2))
-                    try:
-                        cblock.ncol = int(hd[3])
-                    except:
-                        raise(TableBlockHeaderError(cblock.blockstart+2))
-            except:
-                raise(TableBlockHeaderError(cblock.blockstart+2))
+            #--if an XLS wasn't read
+            if not isExcel:
+                # pull out the header information and parse nrow and ncol
+                cheader = cbdata.pop(0)
+                header_data = cheader.strip().split('=')
+                hd = []
+                for j in header_data:
+                    hd.extend(j.split())
+                # check that the header information is correctly formatted
+                if len(hd) == 0:
+                    raise(TableBlockEmpty(i,cblock.blockstart+2))
+                try:
+                    if ((hd[0].lower() == 'nrow') and
+                        (hd[2].lower() == 'ncol') and
+                        (hd[4].lower() == 'columnlabels')):
+                        try:
+                            cblock.nrow = int(hd[1])
+                        except:
+                            raise(TableBlockHeaderError(cblock.blockstart+2))
+                        try:
+                            cblock.ncol = int(hd[3])
+                        except:
+                            raise(TableBlockHeaderError(cblock.blockstart+2))
+                except:
+                    raise(TableBlockHeaderError(cblock.blockstart+2))
 
 
-            # pull off the column labels
-            clabels = cbdata.pop(0).strip().split()
+                # pull off the column labels
+                clabels = cbdata.pop(0).strip().split()
 
-            # check each row for the correct number of columns
-            cline = cblock.blockstart + 3
-            if len(clabels) != cblock.ncol:
-                raise(TableBlockColError(i,cline,cblock.ncol,len(clabels)))
-            for line in cbdata:
-                cline += 1
-                if '#' in line:
-                    raise(TableCommentError(cline,cblock.blockname))
-                else:
-                    tmp = line.strip().split()
-                    if i != 'prior_information':
-                        if len(tmp) != cblock.ncol:
+                # check each row for the correct number of columns
+                cline = cblock.blockstart + 3
+                if len(clabels) != cblock.ncol:
+                    raise(TableBlockColError(i,cline,cblock.ncol,len(clabels)))
+                for line in cbdata:
+                    cline += 1
+                    if '#' in line:
+                        raise(TableCommentError(cline,cblock.blockname))
+                    else:
+                        tmp = line.strip().split()
+                        if i != 'prior_information':
+                            if len(tmp) != cblock.ncol:
+                                raise(TableBlockColError(i,cline,cblock.ncol,len(tmp)))
+                        elif len(tmp) < 1: 
                             raise(TableBlockColError(i,cline,cblock.ncol,len(tmp)))
-                    elif len(tmp) < 1: 
-                        raise(TableBlockColError(i,cline,cblock.ncol,len(tmp)))
-            # now check the number of rows
-            if len(cbdata) != cblock.nrow:
-                raise(TableBlockRowError(i,cblock.nrow,len(cbdata)))   
+                # now check the number of rows
+                if len(cbdata) != cblock.nrow:
+                    raise(TableBlockRowError(i,cblock.nrow,len(cbdata)))   
 
-            # parse the data into a dictionary for later output
-            data_array = list()
-            for line in cbdata:
-                if '#' not in line:
-                    if i != 'prior_information':
-                        data_array.append(line.strip().split())
+                # parse the data into a dictionary for later output
+                data_array = list()
+                for line in cbdata:
+                    if '#' not in line:
+                        if i != 'prior_information':
+                            data_array.append(line.strip().split())
+                        else:
+                            data_array.append(line.strip())
+                data_array = np.atleast_2d(np.squeeze(np.array(data_array)))
+                for jj,keyy in enumerate(clabels):
+                    if keyy in legal_columns:
+                        if cblock.ncol == 1:
+                            self.tabblockdict[i][keyy] = data_array[0]
+                        else:
+                            self.tabblockdict[i][keyy] = data_array[:,jj]
                     else:
-                        data_array.append(line.strip())
-            data_array = np.atleast_2d(np.squeeze(np.array(data_array)))
-            for jj,keyy in enumerate(clabels):
-                if keyy in legal_columns:
-                    if cblock.ncol == 1:
-                        self.tabblockdict[i][keyy] = data_array[0]
-                    else:
-                        self.tabblockdict[i][keyy] = data_array[:,jj]
-                else:
-                    raise(BlockIllegalColumn(i,keyy))
+                        raise(BlockIllegalColumn(i,keyy))
     # ###################### #
     # Write out the PST file #
     # ###################### #
-    def write_pst_file(self):
+    def pst_write(self,outfile):
         # open an output file
-        ofp = open(self.outfile,'w')
+        ofp = open(outfile,'w')
         # ###
         # Write out mandatory control data block
         # ###
@@ -929,38 +1310,40 @@ class file_control:
         # Write out optional pest++ block
         # ###
         cblock = 'pest++'
+        isPestpp = True
         try:
             cdict = self.kwblocks[cblock].kwdict
             ofp.write('++# PEST++ section generated by keyPEST\n')            
         except KeyError:
-            pass  
-        if cdict['HOST'] == UNINIT_STRING:
-            raise(DefaultValueError('HOST',cblock))
-        else:
-            chost = cdict['HOST']
-        if cdict['PORT'] == UNINIT_INT:
-            raise(DefaultValueError('PORT',cblock))
-        else:
-            try:
-                cport = int(cdict['PORT'])
-            except:
-                raise(TypeFailError(cdict['PORT'],'PORT','int'))
-        cdict['GMAN_SOCKET'] = str(chost) + ":" + str(cport)
-        # write a line
-        mandatoryvals = ['GMAN_SOCKET']
-        mandatorytypes = ['string']
-        ofp.write('++ ')
-        write_KW_line_ppp(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
-        # write a line
-        mandatoryvals = ['SUPER_NMAX','SUPER_EIGTHRES']
-        mandatorytypes = ['int','real']
-        ofp.write('++ ')
-        write_KW_line_ppp(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
-        # write a line
-        mandatoryvals = ['N_ITER_BASE','N_ITER_SUPER']
-        mandatorytypes = ['int','int']
-        ofp.write('++ ')
-        write_KW_line_ppp(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
+            isPestpp = False           
+        if isPestpp:    
+            if cdict['HOST'] == UNINIT_STRING:
+                raise(DefaultValueError('HOST',cblock))
+            else:
+                chost = cdict['HOST']
+            if cdict['PORT'] == UNINIT_INT:
+                raise(DefaultValueError('PORT',cblock))
+            else:
+                try:
+                    cport = int(cdict['PORT'])
+                except:
+                    raise(TypeFailError(cdict['PORT'],'PORT','int'))
+            cdict['GMAN_SOCKET'] = str(chost) + ":" + str(cport)
+            # write a line
+            mandatoryvals = ['GMAN_SOCKET']
+            mandatorytypes = ['string']
+            ofp.write('++ ')
+            write_KW_line_ppp(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
+            # write a line
+            mandatoryvals = ['SUPER_NMAX','SUPER_EIGTHRES']
+            mandatorytypes = ['int','real']
+            ofp.write('++ ')
+            write_KW_line_ppp(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
+            # write a line
+            mandatoryvals = ['N_ITER_BASE','N_ITER_SUPER']
+            mandatorytypes = ['int','int']
+            ofp.write('++ ')
+            write_KW_line_ppp(ofp,cdict,cblock,mandatoryvals,mandatorytypes)
                  
         # ######
         # CLOSE THE PST FILE
@@ -1061,23 +1444,23 @@ kwblocks = {'control_data' : # ######################
             'derivatives_command_line': # ######################
             {'DERCOMLINE' : UNINIT_STRING,
              'EXTDERFLE' : UNINIT_STRING},
-            'model_command_line' : # ######################
-            {'NPREDMAXMIN' : UNINIT_INT,
-             'PREDNOISE' : UNINIT_INT,
-             'PD0' : UNINIT_REAL, 
-             'PD1' : UNINIT_REAL, 
-             'PD2' : UNINIT_REAL,
-             'ABSPREDLAM' : UNINIT_REAL,
-             'RELPREDLAM' : UNINIT_REAL,
-             'INITSCHFAC' : UNINIT_REAL,
-             'MULSCHFAC' : UNINIT_REAL,
-             'NSEARCH' : UNINIT_INT,
-             'ABSPREDSWH' : UNINIT_REAL,
-             'RELPREDSWH' : UNINIT_REAL,
-             'NPREDNORED' : UNINIT_INT,
-             'ABSPREDSTP' : UNINIT_REAL,
-             'RELPREDSTP' : UNINIT_REAL,
-             'NPREDSTP' : UNINIT_INT},
+            #'model_command_line' : # ######################
+            #{'NPREDMAXMIN' : UNINIT_INT,
+            # 'PREDNOISE' : UNINIT_INT,
+            # 'PD0' : UNINIT_REAL, 
+            # 'PD1' : UNINIT_REAL, 
+            # 'PD2' : UNINIT_REAL,
+            # 'ABSPREDLAM' : UNINIT_REAL,
+            # 'RELPREDLAM' : UNINIT_REAL,
+            # 'INITSCHFAC' : UNINIT_REAL,
+            # 'MULSCHFAC' : UNINIT_REAL,
+            # 'NSEARCH' : UNINIT_INT,
+            # 'ABSPREDSWH' : UNINIT_REAL,
+            # 'RELPREDSWH' : UNINIT_REAL,
+            # 'NPREDNORED' : UNINIT_INT,
+            # 'ABSPREDSTP' : UNINIT_REAL,
+            # 'RELPREDSTP' : UNINIT_REAL,
+            # 'NPREDSTP' : UNINIT_INT},
             'regularisation' : # ######################
             # -- kludge here. Must ensure that 'regularization' data matches ' regularisation'
             {'PHIMLIM' : UNINIT_REAL, # SET DEFAULT AS NOBS
@@ -1153,6 +1536,40 @@ kwblocks = {'control_data' : # ######################
              }}
 
 
+jup2pst = {'control_data':'* control data',
+           'lsqr':'* lsqr',
+           'svd_assist':'* svd assist',
+           'automatic_user_intervention':'* automatic user intervention',
+           'singular_value_decomposition':'* singular value decomposition',
+           'regularization':'* regularisation',
+           'regularisation':'* regularisation',
+           'pareto':'* pareto',
+           'sensitivity_reuse':'* sensitivity reuse',
+           'predictive_analysis':'* predictive analysis',
+           'model_command_line':'* model command line',
+           'derivatives_command_line':'* derivatives command line',
+           'parameter_groups':'* parameter groups',
+           'parameter_data':'* parameter data',            
+           'observation_groups':'* observation groups',
+           'observation_data':'* observation data',
+           'model_input':'* model input/output',           
+           'model_output':'* model input/output',
+           'prior_information':'* prior information',
+           'pest++':'pest++',
+           'parameter_tied_data':'!JUNK!'}
+
+table2tag = {'parameter_groups':'PARGPNME',
+             'parameter_data':'PARNME',
+             'observation_groups':'OBGNME',
+             'observation_data':'OBSNME',
+             'model_command_line':'COMLINE',
+             'model_output':'INSFLE',
+             'model_input':'TEMPFLE',
+             'prior_information':'PILINES',
+             'parameter_tied_data':'PARNME'}
+
+
+
 # ################################################# #
 # DICTIONARY OF TABLE BLOCK NAMES WITH COLUMN NAMES #
 # ################################################# #
@@ -1204,7 +1621,6 @@ class BlockSyntaxError(Exception):
         self.value = cline
     def __str__(self):
         return('\n\nBlock input syntax ERROR: Illegal word on line: ' + str(self.value+1))
-
 # -- illegal block name
 class BlockNameError(Exception):
     def __init__(self,cline,cname):
@@ -1212,9 +1628,6 @@ class BlockNameError(Exception):
         self.cname = cname
     def __str__(self):
         return('\n\nBlock name ERROR: Illegal blockname "' + self.cname + '" on line: ' + str(self.value+1))
-
-
-
 # -- duplicate block names used
 class BlockDuplicate(Exception):
     def __init__(self,dupes):
@@ -1224,7 +1637,6 @@ class BlockDuplicate(Exception):
         for i in self.dupes:
             print i
         return
-
 # -- mismatched begin and end 1
 class BlockMismatchNoEND(Exception):
     def __init__(self,blname):
@@ -1336,7 +1748,7 @@ class MissingBlockError(Exception):
     def __init__(self,block):
         self.blockname = block
     def __str__(self):
-        return('\n\nRequired Block "' + self.block + '" is missing')    
+        return('\n\nRequired Block "' + self.blockname + '" is missing')    
 # -- regularization double-dipping
 class RegularizationDouleDipping(Exception):
     def __init__(self,block):
@@ -1368,7 +1780,6 @@ class TableCommentError(Exception):
     def __str__(self):
         return('\n\nComments are not allowed in Table blocks.\nSee line ' + 
                str(self.cline) + ' in block: ' + self.cblock + '\n')
-
 # -- no comments allowed in table blocks
 class InvalidInputExtension(Exception):
     def __init__(self,filename):
