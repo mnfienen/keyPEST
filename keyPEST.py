@@ -7,14 +7,14 @@ import keyPESTdata as kp
 reload(kp)
 # get the input filename from the command line
 infile  = sys.argv[1]
-if infile[-4:] != '.key':
+if infile[-4:] != '.kyp':
     raise(InvalidInputExtension(infile))
 else:
     casename = infile[:-4]
     
 
 # initialize the main control
-main_control = kp.file_control(casename+'.key',casename+'.pst')
+main_control = kp.file_control(casename+'.kyp',casename+'.pst')
                            
 
 # read over the file once to evaluate blocknames and detect major syntax errors

@@ -233,7 +233,7 @@ class file_control():
 
     def read(self,fname):
         '''a convience function to read in the desired type of input'''
-        if fname.upper().endswith('KEY'):
+        if fname.upper().endswith('KYP'):
             self.key_check_block_integrity(fname)
             self.key_initialize_blocks()
             self.key_read_keyword_blocks()
@@ -576,7 +576,7 @@ class file_control():
                 raise IndexError,'wrong number of columns in XLS '+fname+'\n'+\
                       'consider using a header row:\n'+block.colnames
             else:
-                print 'no header found in XLS '+fname+'assuming column order'
+                print 'no header found in XLS '+fname+': assuming column order'
             header = block.colnames
         else:
             header = row1
@@ -1225,7 +1225,7 @@ class file_control():
         # here comes a bit of a kludge to handle multiple spellings of regularization/regularisation
 
         if (('regularization' in self.kwblocks.keys()) and ('regularisation' in self.kwblocks.keys())):
-            raise(RegularizationDouleDipping('reg'))
+            raise(RegularizationDoubleDipping('reg'))
         elif ('regularization' in self.kwblocks.keys()):
             cblock = 'regularization'
         elif ('regularisation' in self.kwblocks.keys()):
@@ -1386,7 +1386,7 @@ kwblocks = {'control_data' : # ######################
              'SPLITSWH' : UNINIT_REAL,
              'DOAUI' : 'noaui',
              'DOSENREUSE' : 'senreuse',
-             'NOPTMAX' : 25,
+             'NOPTMAX' : 0,
              'PHIREDSTP' : 0.005,
              'NPHISTP' : 4,
              'NPHINORED' : 4,
@@ -1750,7 +1750,7 @@ class MissingBlockError(Exception):
     def __str__(self):
         return('\n\nRequired Block "' + self.blockname + '" is missing')    
 # -- regularization double-dipping
-class RegularizationDouleDipping(Exception):
+class RegularizationDoubleDipping(Exception):
     def __init__(self,block):
         self.blockname = block
     def __str__(self):
@@ -1785,4 +1785,4 @@ class InvalidInputExtension(Exception):
     def __init__(self,filename):
         self.cfile = filename
     def __str__(self):
-        return('\n\nInvalid input filename: ' + self.cfile + '\nFile should be of format <casename>.key\n')
+        return('\n\nInvalid input filename: ' + self.cfile + '\nFile should be of format <casename>.kyp\n')
