@@ -2,14 +2,14 @@ import sys
 import copy
 import xml.etree.ElementTree as xml
 import numpy as np
-
+'''
 try:
     import xlrd
 except:
     print 'You need to get the \'XLRD\' module to use the'+\
           ' keyPEST EXCEL support functionality'
     sys.exit()
-
+'''
 
 # set a few constants
 UNINIT_STRING = 'unititialized'
@@ -238,8 +238,10 @@ class file_control():
             self.key_initialize_blocks()
             self.key_read_keyword_blocks()
             self.key_read_table_blocks()
+            self.key_default_enumeration()
         elif fname.upper().endswith('XML'):
             self.xml_read(fname)
+            self.key_default_enumeration()
         else:
             raise TypeError,'file type '+fname[-3:]+' not supported'
         return
@@ -253,6 +255,54 @@ class file_control():
         else:
             raise TypeError,'file type '+fname[-3:]+' not supported'
     
+    def key_default_enumeration(self):
+        # function to provide counts for enumerated values to avoid misstated counters
+        #NPAR
+        if len(self.tabblockdict['parameter_data']['PARNME']) != int(self.kwblocks['control_data'].kwdict['NPAR']):
+            if self.kwblocks['control_data'].kwdict['NPAR'] != UNINIT_INT:
+                print 'Warning: NPAR specified as %s: Replaced with actual number of parameters --> %d' %(self.kwblocks['control_data'].kwdict['NPAR'],
+                                                                                                 len(self.tabblockdict['parameter_data']['PARNME']))
+            self.kwblocks['control_data'].kwdict['NPAR'] = len(self.tabblockdict['parameter_data']['PARNME'])
+        #NPARGP
+        if len(self.tabblockdict['parameter_groups']['PARGPNME']) != int(self.kwblocks['control_data'].kwdict['NPARGP']):
+            if self.kwblocks['control_data'].kwdict['NPARGP'] != UNINIT_INT:
+                print 'Warning: NPARGP specified as %s: Replaced with actual number of parameter groups --> %d' %(self.kwblocks['control_data'].kwdict['NPARGP'],
+                                                                                                 len(self.tabblockdict['parameter_groups']['PARGPNME']))
+            self.kwblocks['control_data'].kwdict['NPARGP'] = len(self.tabblockdict['parameter_groups']['PARGPNME'])
+        #NOBSGP
+        if len(self.tabblockdict['observation_groups']['OBGNME']) != int(self.kwblocks['control_data'].kwdict['NOBSGP']):
+            if self.kwblocks['control_data'].kwdict['NOBSGP'] != UNINIT_INT:
+                print 'Warning: NOBSGP specified as %s: Replaced with actual number of observation groups --> %d' %(self.kwblocks['control_data'].kwdict['NOBSGP'],
+                                                                                                 len(self.tabblockdict['observation_groups']['OBGNME']))
+            self.kwblocks['control_data'].kwdict['NOBSGP'] = len(self.tabblockdict['observation_groups']['OBGNME'])
+        #NOBS        
+        if len(self.tabblockdict['observation_data']['OBSNME']) != int(self.kwblocks['control_data'].kwdict['NOBS']):
+            if self.kwblocks['control_data'].kwdict['NOBS'] != UNINIT_INT:            
+                print 'Warning: NOBS specified as %s: Replaced with actual number of observations --> %d' %(self.kwblocks['control_data'].kwdict['NOBS'],
+                                                                                                 len(self.tabblockdict['observation_data']['OBSNME']))
+            self.kwblocks['control_data'].kwdict['NOBS'] = len(self.tabblockdict['observation_data']['OBSNME'])
+        #NTPLFLE        
+        if len(self.tabblockdict['model_input']['INFLE']) != int(self.kwblocks['control_data'].kwdict['NTPLFLE']):
+            if self.kwblocks['control_data'].kwdict['NTPLFLE'] != UNINIT_INT:        
+                print 'Warning: NTPLFLE specified as %s: Replaced with actual number of template files --> %d' %(self.kwblocks['control_data'].kwdict['NTPLFLE'],
+                                                                                                 len(self.tabblockdict['model_input']['INFLE']))
+            self.kwblocks['control_data'].kwdict['NTPLFLE'] = len(self.tabblockdict['model_input']['INFLE'])
+        #NINSFLE        
+        if len(self.tabblockdict['model_output']['OUTFLE']) != int(self.kwblocks['control_data'].kwdict['NINSFLE']):
+            if self.kwblocks['control_data'].kwdict['NINSFLE'] != UNINIT_INT:            
+                print 'Warning: NINSFLE specified as %s: Replaced with actual number of instruction files --> %d' %(self.kwblocks['control_data'].kwdict['NINSFLE'],
+                                                                                                 len(self.tabblockdict['model_output']['OUTFLE']))
+            self.kwblocks['control_data'].kwdict['NINSFLE'] = len(self.tabblockdict['model_output']['OUTFLE'])
+        #NPRIOR
+        if int(self.kwblocks['control_data'].kwdict['NPRIOR']) != 0:
+            try:
+                if len(self.tabblockdict['prior_information']['PILINES']) != int(self.kwblocks['control_data'].kwdict['NPRIOR']):    
+                    print 'Warning: NPRIOR specified as %s: Replaced with actual number of prior information equations --> %d' %(self.kwblocks['control_data'].kwdict['NPRIOR'],
+                                                                                                     len(self.tabblockdict['prior_information']['PILINES']))
+                    self.kwblocks['control_data'].kwdict['NPRIOR'] = len(self.tabblockdict['prior_information']['PILINES'])
+            except KeyError:
+                print 'Warning: NPRIOR specified as %s: No prior information supplied. NPRIOR set to 0.' %(self.kwblocks['control_data'].kwdict['NPRIOR'])
+                
     def xml_write(self,fname):
         #--instance of an XML tree
         root = xml.Element('pcf')

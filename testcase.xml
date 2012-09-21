@@ -1,189 +1,215 @@
 <pcf>
   <section>* control data
-    <RSTFLE mandatory="True" value="restart" />
-    <PESTMODE mandatory="True" value="regularisation" />
-    <NPAR mandatory="True" value="601" />
-    <NOBS mandatory="True" value="75" />
-    <NPARGP mandatory="True" value="2" />
-    <NPRIOR mandatory="True" value="601" />
-    <NOBSGP mandatory="True" value="6" />
-    <MAXCOMPDIM mandatory="False" />
-    <NTPLFLE mandatory="True" value="2" />
-    <NINSFLE mandatory="True" value="5" />
-    <PRECIS mandatory="True" value="single" />
-    <DPOINT mandatory="True" value="point" />
-    <NUMCOM mandatory="False" value="1" />
-    <JACFILE mandatory="False" value="0" />
-    <MESSFILE mandatory="False" value="0" />
-    <OBSREREF mandatory="False" />
-    <RLAMBDA1 mandatory="True" value="10.0" />
-    <RLAMFAC mandatory="True" value="2.0" />
-    <PHIRATSUF mandatory="True" value="0.3" />
-    <PHIREDLAM mandatory="True" value="0.03" />
-    <NUMLAM mandatory="True" value="10" />
-    <JACUPDATE mandatory="False" value="999" />
-    <LAMFORGIVE mandatory="False" value="lamforgive" />
-    <RELPARMAX mandatory="True" value="10.0" />
-    <FACPARMAX mandatory="True" value="10.0" />
-    <FACORIG mandatory="True" value="0.001" />
-    <IBOUNDSTICK mandatory="False" />
-    <UPVECBEND mandatory="False" />
-    <ABSPARMAX mandatory="False" />
-    <PHIREDSWH mandatory="True" value="0.1" />
-    <NOPTSWITCH mandatory="False" />
-    <SPLITSWH mandatory="False" />
-    <DOAUI mandatory="False" />
-    <DOSENREUSE mandatory="False" />
-    <NOPTMAX mandatory="True" value="50" />
-    <PHIREDSTP mandatory="True" value="0.005" />
-    <NPHISTP mandatory="True" value="4" />
-    <NPHINORED mandatory="True" value="4" />
-    <RELPARSTP mandatory="True" value="0.0001" />
-    <NRELPAR mandatory="True" value="4" />
-    <PHISTOPTHRESH mandatory="False" />
-    <LASTRUN mandatory="False" />
-    <PHIABANDON mandatory="False" />
-    <ICOV mandatory="True" value="1" />
-    <ICOR mandatory="True" value="1" />
-    <IEIG mandatory="True" value="1" />
-    <IRES mandatory="False" />
-    <JCOSAVE mandatory="False" />
-    <VERBOSEREC mandatory="False" />
-    <JCOSAVEITN mandatory="False" />
-    <REISAVEITN mandatory="False" />
-    <PARSAVEITN mandatory="False" />
-    <PARSAVERUN mandatory="False" />
+    <DOAUI value="noaui" />
+    <DOSENREUSE value="senreuse" />
+    <DPOINT value="point" />
+    <FACORIG value="0.01" />
+    <FACPARMAX value="2.3" />
+    <IBOUNDSTICK />
+    <ICOR value="1" />
+    <ICOV value="1" />
+    <IEIG value="1" />
+    <IRES value="1" />
+    <JACFILE />
+    <JACUPDATE value="999" />
+    <JCOSAVE value="jcosave" />
+    <JCOSAVEITN value="jcosaveitn" />
+    <LAMFORGIVE value="nolamforgive" />
+    <LASTRUN value="0" />
+    <MAXCOMPDIM />
+    <MESSFILE />
+    <NINSFLE value="1" />
+    <NOBS value="2" />
+    <NOBSGP value="1" />
+    <NOPTMAX value="-1" />
+    <NOPTSWITCH />
+    <NPAR value="3" />
+    <NPARGP value="1" />
+    <NPHINORED value="1" />
+    <NPHISTP value="20" />
+    <NPRIOR value="5" />
+    <NRELPAR value="9" />
+    <NTPLFLE value="1" />
+    <NUMCOM />
+    <NUMLAM value="10" />
+    <PARSAVEITN value="noparsaveitn" />
+    <PESTMODE value="estimation" />
+    <PHIABANDON />
+    <PHIRATSUF value="1.0e-02" />
+    <PHIREDLAM value="2." />
+    <PHIREDSTP value="1.0" />
+    <PHIREDSWH value="0.5" />
+    <PHISTOPTHRESH value="1.0e-4" />
+    <PRECIS value="single" />
+    <REISAVEITN value="reisaveitn" />
+    <RELPARMAX value="1.0" />
+    <RELPARSTP value="2" />
+    <RLAMBDA1 value="10.0" />
+    <RLAMFAC value="-3.0" />
+    <RSTFLE value="restart" />
+    <SPLITSWH />
+    <UPVECBEND />
+    <VERBOSEREC value="verboserec" />
   </section>
-  <section>* singular value decomposition
-    <SVDMODE mandatory="True" value="1" />
-    <MAXSING mandatory="True" value="21" />
-    <EIGTHRESH mandatory="True" value="1.0e-10" />
-    <EIGWRITE mandatory="True" value="0" />
+  <section>* pareto
+    <ABOVE_OR_BELOW value="above" />
+    <ALT_TERM value="1" />
+    <NOBS_REPORT value="1" />
+    <NUM_ITER_FIN value="20" />
+    <NUM_ITER_GEN value="15" />
+    <NUM_ITER_START value="6" />
+    <NUM_ITER_THRESH value="55" />
+    <NUM_WTFAC_INC value="5" />
+    <OBS_REPORT_1 value="report1" />
+    <OBS_REPORT_3 value="report3" />
+    <OBS_REPORT_4 value="report4" />
+    <OBS_REPORT_8 value="report2" />
+    <OBS_TERM value="ob1" />
+    <OBS_THRESH value="42.42" />
+    <PARETO_OBSGROUP value="obsgroup1" />
+    <PARETO_WTFAC_FIN value="2.4" />
+    <PARETO_WTFAC_START value="1.2" />
   </section>
-  <section>* parameter groups
-    <p>
-      <PARGPNME mandatory="True" value="p" />
-      <INCTYP mandatory="True" value="relative" />
-      <DERINC mandatory="True" value="0.01" />
-      <DERINCLB mandatory="True" value="0.0" />
-      <FORCEN mandatory="True" value="switch" />
-      <DERINCMUL mandatory="True" value="2.0" />
-      <DERMTHD mandatory="True" value="parabolic" />
-      <SPLITTHRESH mandatory="False" />
-      <SPLITRELDIFF mandatory="False" />
-      <SPLITACTION mandatory="False" />
-    </p>
-    <m>
-      <PARGPNME mandatory="True" value="m" />
-      <INCTYP mandatory="True" value="relative" />
-      <DERINC mandatory="True" value="0.01" />
-      <DERINCLB mandatory="True" value="0.0" />
-      <FORCEN mandatory="True" value="switch" />
-      <DERINCMUL mandatory="True" value="2.0" />
-      <DERMTHD mandatory="True" value="parabolic" />
-      <SPLITTHRESH mandatory="False" />
-      <SPLITRELDIFF mandatory="False" />
-      <SPLITACTION mandatory="False" />
-    </m>
-  </section>
-  <section>* parameter data
-    <mult1>
-      <PARNME mandatory="True" value="mult1" />
-      <PARTRANS mandatory="True" value="tied" />
-      <PARCHGLIM mandatory="True" value="factor" />
-      <PARVAL1 mandatory="True" value="1.0" />
-      <PARLBND mandatory="True" value="1e-10" />
-      <PARUBND mandatory="True" value="1e+10" />
-      <PARGP mandatory="True" value="m" />
-      <SCALE mandatory="True" value="1.0" />
-      <OFFSET mandatory="True" value="0.0" />
-      <DERCOM mandatory="True" value="1" />
-      <PARTIED mandatory="True" value="mult1" />
-    </mult1>
-    <kr01c01>
-      <PARNME mandatory="True" value="kr01c01" />
-      <PARTRANS mandatory="True" value="tied" />
-      <PARCHGLIM mandatory="True" value="factor" />
-      <PARVAL1 mandatory="True" value="200.0" />
-      <PARLBND mandatory="True" value="1e-10" />
-      <PARUBND mandatory="True" value="1e+10" />
-      <PARGP mandatory="True" value="p" />
-      <SCALE mandatory="True" value="1.0" />
-      <OFFSET mandatory="True" value="0.0" />
-      <DERCOM mandatory="True" value="1" />
-      <PARTIED mandatory="True" value="mult1" />
-    </kr01c01>
-  </section>
-  <section>* observation groups
-    <regul_pp>
-      <OBGNME mandatory="True" value="regul_pp" />
-      <GTARG mandatory="False" />
-      <COVFLE mandatory="False" />
-    </regul_pp>
-    <conc>
-      <OBGNME mandatory="True" value="conc" />
-      <GTARG mandatory="False" />
-      <COVFLE mandatory="False" />
-    </conc>
-  </section>
-  <section>* observation data
-    <H_OBS01_1>
-      <OBSNME mandatory="True" value="H_OBS01_1" />
-      <OBSVAL mandatory="True" value="5.139620e-02" />
-      <WEIGHT mandatory="True" value="1.521458e+02" />
-      <OBGNME mandatory="True" value="head" />
-    </H_OBS01_1>
-    <H_OBS01_2>
-      <OBSNME mandatory="True" value="H_OBS01_2" />
-      <OBSVAL mandatory="True" value="2.215620e-02" />
-      <WEIGHT mandatory="True" value="0.000000e+00" />
-      <OBGNME mandatory="True" value="head" />
-    </H_OBS01_2>
-  </section>
-  <section>* model command line
-    <d_model_fine.bat>
-      <COMLINE mandatory="True" value="d_model_fine.bat" />
-    </d_model_fine.bat>
-  </section>
-  <section>* model input/output
-    <pp_locs.tpl>
-      <MODEL_INTERFACE_FILE mandatory="True" value="pp_locs.tpl" />
-      <MODEL_FILE mandatory="True" value="pp_locs.dat" />
-    </pp_locs.tpl>
-    <par2par_coarse.tpl>
-      <MODEL_INTERFACE_FILE mandatory="True" value="test.ins" />
-      <MODEL_FILE mandatory="True" value="test.out" />
-    </par2par_coarse.tpl>
-  </section>
-  <section>* prior information
-    <mult1>
-      <PILBL mandatory="True" value="mult1" />
-      <PI_EQUATION mandatory="True" value="1.0 * log(mult1) = 0.000000" />
-      <WEIGHT mandatory="True" value="1.0" />
-      <OBGNME mandatory="True" value="regul_m" />
-    </mult1>
-    <kr01c01>
-      <PILBL mandatory="True" value="kr01c01" />
-      <PI_EQUATION mandatory="True" value="1.0 * log(kr01c01) = 2.301030" />
-      <WEIGHT mandatory="True" value="1.0" />
-      <OBGNME mandatory="True" value="regul_p" />
-    </kr01c01>
+  <section>* derivatives command line
+    <DERCOMLINE value="adjoint_code.exe" />
+    <EXTDERFLE value="myjacobian.jac" />
   </section>
   <section>* regularisation
-    <PHIMLIM mandatory="True" value="3.600000e+01" />
-    <PHIMACCEPT mandatory="True" value="3.780000e+01" />
-    <FRACPHIM mandatory="False" value="0.1000000" />
-    <MEMSAVE mandatory="False" />
-    <WFINIT mandatory="True" value="1.0" />
-    <WFMIN mandatory="True" value="1.0e-10" />
-    <WFMAX mandatory="True" value="1.0e10" />
-    <LINREG mandatory="False" />
-    <REGCONTINUE mandatory="False" />
-    <WFFAC mandatory="True" value="1.3" />
-    <WFTOL mandatory="True" value="1.0e-2" />
-    <IREGADJ mandatory="True" value="1" />
-    <NOPTREGADJ mandatory="False" />
-    <REGWEIGHTRAT mandatory="False" />
-    <REGSINGTHRESH mandatory="False" />
+    <FRACPHIM value="1.0" />
+    <IREGADJ value="4" />
+    <LINREG value="linreg" />
+    <MEMSAVE value="memsave" />
+    <NOPTREGADJ value="2" />
+    <PHIMACCEPT value="2.1" />
+    <PHIMLIM value="2" />
+    <REGCONTINUE value="continue" />
+    <REGSINGTHRESH value="2.1" />
+    <REGWEIGHTRAT value="1.2" />
+    <WFFAC value="5.5" />
+    <WFINIT value="3.5" />
+    <WFMAX value="44.5" />
+    <WFMIN value="42.0" />
+    <WFTOL value="42.5" />
+  </section>
+  <section>* predictive analysis
+    <ABSPREDLAM value="0.0" />
+    <ABSPREDSTP value="42.0" />
+    <ABSPREDSWH value="42.0" />
+    <INITSCHFAC value="22.3" />
+    <MULSCHFAC value="34.2" />
+    <NPREDMAXMIN value="-1" />
+    <NPREDNORED value="5" />
+    <NPREDSTP value="52" />
+    <NSEARCH value="3" />
+    <PD0 value="5.0" />
+    <PD1 value="5.2" />
+    <PD2 value="5.5" />
+    <PREDNOISE value="1" />
+    <RELPREDLAM value="5.0" />
+    <RELPREDSTP value="42.0" />
+    <RELPREDSWH value="42.0" />
+  </section>
+  <section>pest++
+    <GMAN_SOCKET value="130.11.167.88:4040" />
+    <HOST value="130.11.167.88" />
+    <N_ITER_BASE value="1" />
+    <N_ITER_SUPER value="4" />
+    <PORT value="4040" />
+    <SUPER_EIGTHRES value="5.0e-07" />
+    <SUPER_NMAX value="400" />
+  </section>
+  <section>* parameter groups
+    <group_one>
+      <DERINC value="0.01" />
+      <DERINCLB value="1.0e-4" />
+      <DERINCMUL value="2.0" />
+      <DERMTHD value="parabolic" />
+      <FORCEN value="switch" />
+      <INCTYP value="relative" />
+      <PARGPNME value="group_one" />
+    </group_one>
+  </section>
+  <section>* model command line
+    <run1.bat>
+      <COMLINE value="run1.bat" />
+    </run1.bat>
+    <run2.exe>
+      <COMLINE value="run2.exe" />
+    </run2.exe>
+    <run3.py>
+      <COMLINE value="run3.py" />
+    </run3.py>
+  </section>
+  <section>* model input/output
+    <file.tpl>
+      <INFLE value="file.in" />
+      <TEMPFLE value="file.tpl" />
+    </file.tpl>
+    <file.ins>
+      <INSFLE value="file.ins" />
+      <OUTFLE value="file.out" />
+    </file.ins>
+  </section>
+  <section>* parameter data
+    <par1>
+      <DERCOM value="0" />
+      <OFFSET value="0.0" />
+      <PARCHGLIM value="relative" />
+      <PARGP value="group_one" />
+      <PARLBND value="1e-10" />
+      <PARNME value="par1" />
+      <PARTIED />
+      <PARTRANS value="log" />
+      <PARUBND value="1e+10" />
+      <PARVAL1 value="3.09" />
+      <SCALE value="1.0" />
+    </par1>
+    <par2>
+      <DERCOM value="0" />
+      <OFFSET value="0.0" />
+      <PARCHGLIM value="relative" />
+      <PARGP value="group_one" />
+      <PARLBND value="1e-10" />
+      <PARNME value="par2" />
+      <PARTIED value="par1" />
+      <PARTRANS value="tied" />
+      <PARUBND value="1e+10" />
+      <PARVAL1 value="34.09" />
+      <SCALE value="1.0" />
+    </par2>
+    <par3>
+      <DERCOM value="0" />
+      <OFFSET value="0.0" />
+      <PARCHGLIM value="relative" />
+      <PARGP value="group_one" />
+      <PARLBND value="1e-10" />
+      <PARNME value="par3" />
+      <PARTIED value="par1" />
+      <PARTRANS value="tied" />
+      <PARUBND value="1e+10" />
+      <PARVAL1 value="4.09" />
+      <SCALE value="1.0" />
+    </par3>
+  </section>
+  <section>* observation groups
+    <obsgroup1>
+      <COVFLE value="covfile.filename" />
+      <GTARG value="5.0e+02" />
+      <OBGNME value="obsgroup1" />
+    </obsgroup1>
+  </section>
+  <section>* observation data
+    <ob1>
+      <OBGNME value="obsgroup1" />
+      <OBSNME value="ob1" />
+      <OBSVAL value="50.0" />
+      <WEIGHT value="1.1e-03" />
+    </ob1>
+    <ob2>
+      <OBGNME value="obsgroup1" />
+      <OBSNME value="ob2" />
+      <OBSVAL value="42.0" />
+      <WEIGHT value="1.1e-03" />
+    </ob2>
   </section>
 </pcf>

@@ -1,5 +1,0 @@
-nrow=3 ncol=10 columnlabels
-PARNME PARTRANS PARCHGLIM PARVAL1 PARLBND PARUBND PARGP SCALE OFFSET DERCOM
-	par1 log relative 3.09 1e-10 1e+10 group_one 1.0 0.0 0
-	par2 tied relative 34.09 1e-10 1e+10 group_one 1.0 0.0 0
-	par3 tied relative 4.09 1e-10 1e+10 group_one 1.0 0.0 0

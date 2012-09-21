@@ -1,6 +1,6 @@
-#keyPEST --- a JUPITER-like keyword to PST translator for PEST++
-# a m!ke@usgs joint
+#keyPEST --- a JUPITER-like keyword to PST/XML translator for PEST and PEST++
 # Mike Fienen --> mnfienen@usgs.gov
+# Jeremy White --> jtwhite@usgs.gov
 import sys
 import numpy as np
 import keyPESTdata as kp
@@ -12,22 +12,14 @@ if infile[-4:] != '.kyp':
 else:
     casename = infile[:-4]
     
-
 # initialize the main control
-main_control = kp.file_control(casename+'.kyp',casename+'.pst')
-                           
+main_control = kp.file_control()
 
-# read over the file once to evaluate blocknames and detect major syntax errors
-main_control.check_block_integrity()
+# read, check, and parse the input file
+main_control.read(casename+'.kyp')
 
-# initialize lists of block types and check that all are valid
-main_control.initialize_blocks()
+# write the output file in PST form
+main_control.write(casename+'.pst')
 
-# read in the keyword blocks
-main_control.read_keyword_blocks()
-
-# read in the tables
-main_control.read_table_blocks()
-
-# write out the PST file
-main_control.write_pst_file()
+# write the output file in XML form
+main_control.write(casename+'.xml')
