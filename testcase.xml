@@ -30,7 +30,7 @@
     <NPRIOR value="5" />
     <NRELPAR value="9" />
     <NTPLFLE value="1" />
-    <NUMCOM />
+    <NUMCOM value="3" />
     <NUMLAM value="10" />
     <PARSAVEITN value="noparsaveitn" />
     <PESTMODE value="estimation" />

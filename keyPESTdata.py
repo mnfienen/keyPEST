@@ -1,15 +1,10 @@
 import sys
 import copy
+import os
 import xml.etree.ElementTree as xml
 import numpy as np
-'''
-try:
-    import xlrd
-except:
-    print 'You need to get the \'XLRD\' module to use the'+\
-          ' keyPEST EXCEL support functionality'
-    sys.exit()
-'''
+
+
 
 # set a few constants
 UNINIT_STRING = 'unititialized'
@@ -231,11 +226,14 @@ class file_control():
         self.tabblocks = dict()        
         self.tabblockdict =  tabblockdicts
 
+      
+
     def read(self,fname):
         '''a convience function to read in the desired type of input'''
         if fname.upper().endswith('KYP'):
             self.key_check_block_integrity(fname)
             self.key_initialize_blocks()
+            self.default_updates()
             self.key_read_keyword_blocks()
             self.key_read_table_blocks()
             self.key_default_enumeration()
@@ -254,52 +252,78 @@ class file_control():
             self.xml_write(fname)
         else:
             raise TypeError,'file type '+fname[-3:]+' not supported'
+        
+    def default_updates(self):
+        # checks for a custom default values file. If one is present, read all variable values and replace defaults with them
+        cfiles = os.listdir(os.getcwd())
+        for cf in cfiles:
+            if cf.lower() == 'key_defaults.txt':
+                defaults_file = cf
+                break
+        if defaults_file:
+            indat = open(defaults_file,'r').readlines()
+            allpairs = list()
+            for line in indat:
+                tmp = line.split()
+                if len(tmp)>0:
+                    if tmp[0] != '#':
+                        tmp = line.strip().split('=')
+                        for j in tmp:
+                            allpairs.extend(j.split())
+            # split temporarily into two lists
+            ckeys = allpairs[::2]
+            cvals = allpairs[1::2]
+            # check that they are the same length
+            if len(ckeys) != len(cvals):
+                raise(DefaultKeyMismatch())                            
+            else:
+                allpairs = dict(zip(ckeys,cvals))
+            for i in self.kwblocks:
+                cblock = self.kwblocks[i]
+                # set the list of legal keys
+                legal_keywords = cblock.kwdict.keys()                
+                for ckey in allpairs:
+                    if ckey.upper() in legal_keywords:
+                        cblock.kwdict[ckey.upper()] = allpairs[ckey]
+                    # case especiale for the pesky pareto reporting keywords
+                    elif i == 'pareto':
+                        if 'OBS_REPORT_' in ckey.upper():
+                            cblock.kwdict[ckey.upper()] = allpairs[ckey]                    
+        
+        
+    def default_enumeration_guts(self,tab_block_name,kw_block_name,par_name,length_par,replaced_text):
+        # convenience function used by key_default_enumeration function
+        if len(self.tabblockdict[tab_block_name][length_par]) != int(self.kwblocks[kw_block_name].kwdict[par_name]):
+            if self.kwblocks[kw_block_name].kwdict[par_name] != UNINIT_INT:
+                print 'Warning: %s specified as %s: Replaced with actual %s --> %d' %(par_name,
+                                                                                    self.kwblocks[kw_block_name].kwdict[par_name],
+                                                                                    replaced_text,
+                                                                                    len(self.tabblockdict[tab_block_name][length_par]))
+            self.kwblocks[kw_block_name].kwdict[par_name] = len(self.tabblockdict[tab_block_name][length_par]) 
     
     def key_default_enumeration(self):
         # function to provide counts for enumerated values to avoid misstated counters
         #NPAR
-        if len(self.tabblockdict['parameter_data']['PARNME']) != int(self.kwblocks['control_data'].kwdict['NPAR']):
-            if self.kwblocks['control_data'].kwdict['NPAR'] != UNINIT_INT:
-                print 'Warning: NPAR specified as %s: Replaced with actual number of parameters --> %d' %(self.kwblocks['control_data'].kwdict['NPAR'],
-                                                                                                 len(self.tabblockdict['parameter_data']['PARNME']))
-            self.kwblocks['control_data'].kwdict['NPAR'] = len(self.tabblockdict['parameter_data']['PARNME'])
+        self.default_enumeration_guts('parameter_data','control_data','NPAR','PARNME','number of parameters')
         #NPARGP
-        if len(self.tabblockdict['parameter_groups']['PARGPNME']) != int(self.kwblocks['control_data'].kwdict['NPARGP']):
-            if self.kwblocks['control_data'].kwdict['NPARGP'] != UNINIT_INT:
-                print 'Warning: NPARGP specified as %s: Replaced with actual number of parameter groups --> %d' %(self.kwblocks['control_data'].kwdict['NPARGP'],
-                                                                                                 len(self.tabblockdict['parameter_groups']['PARGPNME']))
-            self.kwblocks['control_data'].kwdict['NPARGP'] = len(self.tabblockdict['parameter_groups']['PARGPNME'])
+        self.default_enumeration_guts('parameter_groups','control_data','NPARGP','PARGPNME','number of parameter groups')
         #NOBSGP
-        if len(self.tabblockdict['observation_groups']['OBGNME']) != int(self.kwblocks['control_data'].kwdict['NOBSGP']):
-            if self.kwblocks['control_data'].kwdict['NOBSGP'] != UNINIT_INT:
-                print 'Warning: NOBSGP specified as %s: Replaced with actual number of observation groups --> %d' %(self.kwblocks['control_data'].kwdict['NOBSGP'],
-                                                                                                 len(self.tabblockdict['observation_groups']['OBGNME']))
-            self.kwblocks['control_data'].kwdict['NOBSGP'] = len(self.tabblockdict['observation_groups']['OBGNME'])
+        self.default_enumeration_guts('observation_groups','control_data','NOBSGP','OBGNME','number of observation groups')
         #NOBS        
-        if len(self.tabblockdict['observation_data']['OBSNME']) != int(self.kwblocks['control_data'].kwdict['NOBS']):
-            if self.kwblocks['control_data'].kwdict['NOBS'] != UNINIT_INT:            
-                print 'Warning: NOBS specified as %s: Replaced with actual number of observations --> %d' %(self.kwblocks['control_data'].kwdict['NOBS'],
-                                                                                                 len(self.tabblockdict['observation_data']['OBSNME']))
-            self.kwblocks['control_data'].kwdict['NOBS'] = len(self.tabblockdict['observation_data']['OBSNME'])
+        self.default_enumeration_guts('observation_data','control_data','NOBS','OBSNME','number of observations')
         #NTPLFLE        
-        if len(self.tabblockdict['model_input']['INFLE']) != int(self.kwblocks['control_data'].kwdict['NTPLFLE']):
-            if self.kwblocks['control_data'].kwdict['NTPLFLE'] != UNINIT_INT:        
-                print 'Warning: NTPLFLE specified as %s: Replaced with actual number of template files --> %d' %(self.kwblocks['control_data'].kwdict['NTPLFLE'],
-                                                                                                 len(self.tabblockdict['model_input']['INFLE']))
-            self.kwblocks['control_data'].kwdict['NTPLFLE'] = len(self.tabblockdict['model_input']['INFLE'])
+        self.default_enumeration_guts('model_input','control_data','NTPLFLE','INFLE','number of template files')
         #NINSFLE        
-        if len(self.tabblockdict['model_output']['OUTFLE']) != int(self.kwblocks['control_data'].kwdict['NINSFLE']):
-            if self.kwblocks['control_data'].kwdict['NINSFLE'] != UNINIT_INT:            
-                print 'Warning: NINSFLE specified as %s: Replaced with actual number of instruction files --> %d' %(self.kwblocks['control_data'].kwdict['NINSFLE'],
-                                                                                                 len(self.tabblockdict['model_output']['OUTFLE']))
-            self.kwblocks['control_data'].kwdict['NINSFLE'] = len(self.tabblockdict['model_output']['OUTFLE'])
-        #NPRIOR
+        self.default_enumeration_guts('model_output','control_data','NINSFLE','OUTFLE','number of instruction files')
+        #NUMCOM
+        try:
+            self.default_enumeration_guts('model_command_line','control_data','NUMCOM','COMLINE','number of command line calls')   
+        except KeyError:
+            self.kwblocks['control_data'].kwdict['NUMCOM'] = len(self.tabblockdict['model_command_line']['COMLINE']) 
+        #NPRIOR --> special case needs an error trap
         if int(self.kwblocks['control_data'].kwdict['NPRIOR']) != 0:
             try:
-                if len(self.tabblockdict['prior_information']['PILINES']) != int(self.kwblocks['control_data'].kwdict['NPRIOR']):    
-                    print 'Warning: NPRIOR specified as %s: Replaced with actual number of prior information equations --> %d' %(self.kwblocks['control_data'].kwdict['NPRIOR'],
-                                                                                                     len(self.tabblockdict['prior_information']['PILINES']))
-                    self.kwblocks['control_data'].kwdict['NPRIOR'] = len(self.tabblockdict['prior_information']['PILINES'])
+                self.default_enumeration_guts('prior_information','control_data','NPRIOR','PILINES','number of prior information equations')
             except KeyError:
                 print 'Warning: NPRIOR specified as %s: No prior information supplied. NPRIOR set to 0.' %(self.kwblocks['control_data'].kwdict['NPRIOR'])
                 
@@ -344,7 +368,7 @@ class file_control():
             for section in root:
                 if section.text == '* parameter data':
                     par_section = section
-                    break            
+                    break
             #--for each parameter entry
             for par_entry in par_section:
                 #--for each tied parameter entry:
@@ -439,6 +463,8 @@ class file_control():
         root = tree.getroot()
         #--initialize the keyword and table blocks needed
         self.xml_initialize(root)
+        #--update the default values
+        self.default_updates()
         #--fill the blocks
         self.xml_fill(root)
                           
@@ -599,9 +625,9 @@ class file_control():
                 
                     mod_inter_file = mod_inter.attrib['value']
                     if mod_inter_file.upper().endswith('TPL'):
-                         self.tabblocks['model_input'] = tb('model_input',tabblocks['model_input'])    
+                        self.tabblocks['model_input'] = tb('model_input',tabblocks['model_input'])    
                     elif mod_inter_file.upper().endswith('INS'):
-                         self.tabblocks['model_output'] = tb('model_output',tabblocks['model_output'])    
+                        self.tabblocks['model_output'] = tb('model_output',tabblocks['model_output'])    
                     else:
                         raise TypeError,'unidentified model interface file'+mod_inter_file
                             
@@ -856,6 +882,12 @@ class file_control():
                     elif tmp1[0].strip().upper().endswith('XLS'):
                         self.read_xls_table(tmp1[0].strip(),cblock)
                         isExcel = True
+                        try:
+                            import xlrd
+                        except:
+                            print 'You need to get the \'XLRD\' module to use the'+\
+                                  ' keyPEST EXCEL support functionality'
+                            sys.exit()                         
                     else:
                         try:
                             cbdata = open(tmp1[0].strip(),'r').readlines()
@@ -1830,9 +1862,15 @@ class TableCommentError(Exception):
     def __str__(self):
         return('\n\nComments are not allowed in Table blocks.\nSee line ' + 
                str(self.cline) + ' in block: ' + self.cblock + '\n')
-# -- no comments allowed in table blocks
+# -- incorrect Input file extension
 class InvalidInputExtension(Exception):
     def __init__(self,filename):
         self.cfile = filename
     def __str__(self):
         return('\n\nInvalid input filename: ' + self.cfile + '\nFile should be of format <casename>.kyp\n')
+# -- mismatch of keywords and values in defaults file
+class DefaultKeyError(Exception):
+    def __init__(self):
+        self.cfile = 'key_defaults.txt'
+    def __str__(self):
+        return('\n\nMismatch between number of variable names and values in : ' + self.cfile + '\n')
